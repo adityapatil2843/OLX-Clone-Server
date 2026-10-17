@@ -1,0 +1,122 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // url is configured in prisma7.config.ts (Prisma 7 requirement)
+}
+
+// ────────────────────────────────────────────────────────────
+// Reels Module — First Slice
+// Future modules (Users, Listings, Categories) will add
+// foreign-key relationships via their own reviewed migrations.
+// ────────────────────────────────────────────────────────────
+
+enum ReelStatus {
+  DRAFT
+  PROCESSING
+  PUBLISHED
+  FAILED
+  ARCHIVED
+}
+
+model Reel {
+  id                 String      @id @default(uuid())
+
+  // Creator identity — plain string until Users module exists
+  // Replace with: creator   User   @relation(fields: [creatorId], references: [id])
+  creatorId          String
+
+  // Content
+  caption            String?
+  hashtags           String[]    @default([])
+  categoryId         String?     // plain id until Categories module exists
+  locationText       String?
+
+  // Media — object-storage keys, not public URLs
+  videoStorageKey    String?
+  thumbnailStorageKey String?
+  videoProvider      String?     // e.g. "cloudinary", "supabase-storage"
+  durationMs         Int?
+  width              Int?
+  height             Int?
+
+  // Future listing reference — no FK until Listings module exists
+  listingId          String?
+
+  // Lifecycle
+  status             ReelStatus  @default(DRAFT)
+
+  // Timestamps
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  deletedAt          DateTime?   // soft-delete marker
+
+  // ── Indexes ──────────────────────────────────────────────
+  // Feed: published, non-deleted, newest first
+  @@index([status, deletedAt, createdAt(sort: Desc)])
+  // Creator's own reels
+  @@index([creatorId, deletedAt, createdAt(sort: Desc)])
+  // Moderation / status filtering
+  @@index([status])
+}
+
+// ────────────────────────────────────────────────────────────
+// User & Profile Module
+// ────────────────────────────────────────────────────────────
+
+enum UserRole {
+  USER
+  ADMIN
+  MODERATOR
+}
+
+model User {
+  id               String       @id @default(uuid())
+  phone            String?      @unique
+  email            String?      @unique
+  name             String
+  avatarUrl        String?
+  bio              String?
+  locationState    String?
+  locationCity     String?
+  role             UserRole     @default(USER)
+  isVerifiedSeller Boolean      @default(false)
+  isActive         Boolean      @default(true)
+  deletedAt        DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([phone])
+  @@index([email])
+  @@index([role])
+  @@index([isActive, deletedAt])
+}
+
+// ────────────────────────────────────────────────────────────
+// Category Module (Dynamic categories & hierarchy)
+// ────────────────────────────────────────────────────────────
+
+model Category {
+  id           String     @id @default(uuid())
+  name         String
+  slug         String     @unique
+  description  String?
+  iconUrl      String?
+  parentId     String?
+  parent       Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children     Category[] @relation("CategoryHierarchy")
+  isActive     Boolean    @default(true)
+  displayOrder Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([slug])
+  @@index([parentId, isActive, displayOrder])
+  @@index([isActive, displayOrder])
+}
+
