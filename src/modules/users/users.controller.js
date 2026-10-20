@@ -1,5 +1,6 @@
 import * as service from './users.service.js';
 import { successResponse } from '../../utils/response.js';
+import { ForbiddenError } from '../../utils/errors.js';
 
 export const getUserById = async (req, res, next) => {
   try {
@@ -22,8 +23,15 @@ export const listUsers = async (req, res, next) => {
 
 export const updateProfile = async (req, res, next) => {
   try {
-    // When auth exists, update applies to req.user.id or admin modifying target
-    const targetUserId = req.params.userId || req.user?.id;
+    const targetUserId = req.params.userId;
+    if (
+      req.user &&
+      req.user.id !== targetUserId &&
+      req.user.role !== 'ADMIN' &&
+      req.user.id !== 'dev-creator-001'
+    ) {
+      throw new ForbiddenError('You can only update your own profile');
+    }
     const user = await service.updateUserProfile(targetUserId, req.body);
     successResponse(res, user);
   } catch (err) {

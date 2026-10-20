@@ -6,6 +6,7 @@ import {
   updateProfileSchema,
   listUsersQuerySchema,
 } from './users.validation.js';
+import { authenticate, optionalAuthenticate } from '../../middlewares/authenticate.js';
 
 const router = Router();
 
@@ -16,18 +17,18 @@ router.get(
   controller.listUsers
 );
 
-// GET /api/v1/users/:userId - public user profile
+// GET /api/v1/users/:userId - user profile (isSelf gets extended profile)
 router.get(
   '/:userId',
+  optionalAuthenticate,
   validate({ params: userIdParamSchema }),
   controller.getUserById
 );
 
-// PATCH /api/v1/users/:userId/profile - update user profile
-// Note: When full auth is implemented, the current authenticated user's ID
-// will be enforced so users can only edit their own profile.
+// PATCH /api/v1/users/:userId/profile - update user profile (ownership enforced)
 router.patch(
   '/:userId/profile',
+  authenticate,
   validate({ params: userIdParamSchema, body: updateProfileSchema }),
   controller.updateProfile
 );

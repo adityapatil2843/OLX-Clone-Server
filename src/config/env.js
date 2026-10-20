@@ -30,6 +30,22 @@ const envSchema = z.object({
   CLOUDINARY_CLOUD_NAME: z.string().optional(),
   CLOUDINARY_API_KEY: z.string().optional(),
   CLOUDINARY_API_SECRET: z.string().optional(),
+  JWT_ACCESS_SECRET: z
+    .string()
+    .min(16, 'JWT_ACCESS_SECRET must be at least 16 characters')
+    .default('dev-super-secret-jwt-access-key-replace-in-prod-12345'),
+  JWT_REFRESH_SECRET: z
+    .string()
+    .min(16, 'JWT_REFRESH_SECRET must be at least 16 characters')
+    .default('dev-super-secret-jwt-refresh-key-replace-in-prod-12345'),
+  JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
+  JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
+  BCRYPT_SALT_ROUNDS: z
+    .string()
+    .optional()
+    .default('10')
+    .transform((val) => parseInt(val, 10))
+    .pipe(z.number().int().min(4).max(16)),
 });
 
 const parseEnv = () => {

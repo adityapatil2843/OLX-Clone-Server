@@ -63,11 +63,11 @@ Confirm the actual scope during Phase 0. Do not assume every candidate feature c
 | Phase | Scope | Status | Completion condition |
 |---|---|---|---|
 | 0 | Audit and scope | ✅ | Findings and plan recorded |
-| 1 | Backend foundation | ⬜ | Foundation acceptance criteria pass |
-| 2 | Authentication | ⬜ | Auth and security tests pass |
-| 3 | Users and profiles | ⬜ | Ownership and privacy tests pass |
-| 4 | Categories and listings | ⬜ | Listing workflows and integrity tests pass |
-| 5 | Media and Reels | ⬜ | Upload lifecycle and Reel relationships verified |
+| 1 | Backend foundation | ✅ | Foundation acceptance criteria pass |
+| 2 | Authentication | ✅ | Auth and security tests pass |
+| 3 | Users and profiles | 🟡 | Ownership and privacy tests pass |
+| 4 | Categories and listings | 🟡 | Categories complete; listings pending |
+| 5 | Media and Reels | 🟡 | CRUD complete; S3 upload pending |
 | 6 | Search and location | ⬜ | Filter, pagination and location tests pass |
 | 7 | Chat and notifications | ⬜ | Persistence and participant authorization verified |
 | 8 | Reports and moderation | ⬜ | Permission boundaries and audit logs verified |
@@ -120,14 +120,14 @@ Confirm the actual scope during Phase 0. Do not assume every candidate feature c
 
 ### Phase 2 — Authentication
 
-- [ ] Select production authentication method.
-- [ ] Keep test/development authentication separate from production.
-- [ ] Implement OTP expiry, resend cooldown and attempt limits if OTP is used.
-- [ ] Implement access-token expiry and refresh/session lifecycle.
-- [ ] Implement revocation, logout and session/device controls.
-- [ ] Add authentication and authorization middleware.
-- [ ] Add negative-path and rate-limit tests.
-- [ ] Document production provider requirements.
+- [x] Select production authentication method (Email + Password with JWT and Refresh Token rotation).
+- [x] Keep test/development authentication separate from production (fail-closed in prod, dev fallback if configured).
+- [x] Implement access-token expiry and refresh/session lifecycle.
+- [x] Implement revocation, logout and session controls via database RefreshToken model.
+- [x] Add authentication and authorization middleware ([src/middlewares/authenticate.js](file:///c:/Users/onein/OneDrive/Desktop/.vscode/Freelance/OLX-Proj1/server/src/middlewares/authenticate.js)).
+- [x] Add negative-path and rate-limit tests ([tests/auth.test.js](file:///c:/Users/onein/OneDrive/Desktop/.vscode/Freelance/OLX-Proj1/server/tests/auth.test.js)).
+- [ ] Add phone OTP verification when SMS provider is finalized.
+- [x] Document configuration in `.env.example`.
 
 ### Phase 3 — Users and profiles
 
@@ -237,6 +237,8 @@ Confirm the actual scope during Phase 0. Do not assume every candidate feature c
 | 17 Oct 2026 | Database schema & migrations | `npx prisma validate` & migration application | Exit 0: schema valid & applied | Added User and Category models with indexes |
 | 17 Oct 2026 | Prisma client generate | `npx prisma generate` | Exit 0: Prisma Client generated | Client updated with User and Category |
 | 18 Oct 2026 | Integration test suite | `npm test` | Exit 0: 7 passed, 0 failed | Verified foundations, categories, users, reels |
+| 19 Oct 2026 | Password & RefreshToken migration | `npx prisma db push` & migration SQL | Exit 0: database in sync | Added `passwordHash` to User and created `RefreshToken` model |
+| 19 Oct 2026 | Auth module & tests | `npm test` | Exit 0: 8 passed, 0 failed | Auth registration, login, rotation, logout, me, + 7 existing suites pass |
 
 ## 7. Risks and blockers
 
@@ -344,14 +346,16 @@ Update after every Anti-Gravity session:
   - `BACKEND_TRACKER.md`
 - Migrations added:
   - `20261017183000_add_user_and_category_models` (Applied and verified)
+  - `20261019120000_add_password_hash_and_refresh_tokens` (Applied and verified)
 - Commands/tests and results:
-  - `npm test`: Exit 0 (7 passed, 0 failed, 33.5s duration)
+  - `npm test`: Exit 0 (8 passed, 0 failed, ~23s duration)
   - `npx prisma validate`: Exit 0 (Schema valid)
   - `npx prisma generate`: Exit 0 (Generated Prisma Client v7.10.1)
+  - `npx prisma db push`: Exit 0 (Database in sync)
 - Current blockers:
-  - Production authentication (JWT/OTP) is intentionally deferred; endpoints requiring creator or user identity use `devCreatorIdentity` in development and fail-closed in production.
+  - S3-compatible object storage provider needs to be selected to complete real Reels/Media upload lifecycle.
 - Next three tasks:
-  1. Listings Module Foundation (Prisma model, category relation, status transitions, pagination).
+  1. Listings Module (Prisma model, category relation, status transitions, pagination).
   2. S3-Compatible Media Storage & Pre-signed Upload Flow (replacing or augmenting Cloudinary stub).
-  3. Real Authentication & Session Management (OTP verification, JWT/Refresh token rotation, creator authorization).tion in `src/app.js` and `src/server.js`, then write initial integration tests for the health endpoints.
+  3. Search & Location Filters (PostgreSQL FTS, state/city/locality filtering).
 

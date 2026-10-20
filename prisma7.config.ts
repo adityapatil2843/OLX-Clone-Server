@@ -11,8 +11,8 @@ export default defineConfig({
   datasource: {
     // DATABASE_URL  — session pooler (runtime queries)
     url: process.env["DATABASE_URL"],
-    // DIRECT_URL / DIRECT_DATABASE_URL — direct connection (migrations only; bypasses PgBouncer advisory-lock issue)
-    directUrl: process.env["DIRECT_URL"] || process.env["DIRECT_DATABASE_URL"],
+    // DIRECT_URL — direct connection. Falls back to DATABASE_URL when direct IPv6 is unreachable.
+    directUrl: process.env["DIRECT_URL"] || process.env["DATABASE_URL"],
   },
 });
 
