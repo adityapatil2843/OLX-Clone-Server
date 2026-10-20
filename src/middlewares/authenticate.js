@@ -22,11 +22,15 @@ const extractBearerToken = (req) => {
   return null;
 };
 
+import { prisma } from '../db/prisma.js';
+
+let devUserEnsured = false;
+
 /**
  * Strict authentication middleware.
  * Verifies JWT access token and sets req.user and req.creatorId.
  */
-export const authenticate = (req, _res, next) => {
+export const authenticate = async (req, _res, next) => {
   const token = extractBearerToken(req);
 
   if (!token) {
@@ -37,6 +41,24 @@ export const authenticate = (req, _res, next) => {
         role: 'USER',
       };
       req.creatorId = env.DEV_TEST_CREATOR_ID;
+
+      if (!devUserEnsured) {
+        try {
+          await prisma.user.upsert({
+            where: { id: env.DEV_TEST_CREATOR_ID },
+            update: {},
+            create: {
+              id: env.DEV_TEST_CREATOR_ID,
+              name: 'Dev Creator',
+              email: 'dev-creator@example.com',
+              role: 'USER',
+            },
+          });
+          devUserEnsured = true;
+        } catch (_err) {
+          // ignore if already created concurrently
+        }
+      }
       return next();
     }
 

@@ -31,6 +31,13 @@ router.get(
   controller.getCategory
 );
 
+// GET /api/v1/categories/:idOrSlug/attributes - get attribute definitions
+router.get(
+  '/:idOrSlug/attributes',
+  validate({ params: categoryIdOrSlugParamSchema }),
+  controller.getCategoryAttributes
+);
+
 // ── Administrative Category Management ────────────────────────
 // Note: When full authentication is wired, requireRole(['ADMIN'])
 // will guard these mutations.

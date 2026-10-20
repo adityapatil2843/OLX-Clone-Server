@@ -124,3 +124,53 @@ export const deactivateCategory = async (id) => {
 
   return repo.softDeleteCategory(id);
 };
+
+export const getCategoryAttributes = async (idOrSlug) => {
+  const category = await getCategoryByIdOrSlug(idOrSlug);
+  return {
+    categoryId: category.id,
+    categoryName: category.name,
+    categorySlug: category.slug,
+    attributes: category.attributes || [],
+  };
+};
+
+export const validateCategoryAttributes = (attributeSchemas, submittedAttributes = {}) => {
+  if (!attributeSchemas || !Array.isArray(attributeSchemas) || attributeSchemas.length === 0) {
+    return submittedAttributes;
+  }
+
+  const attrs = submittedAttributes || {};
+
+  for (const schema of attributeSchemas) {
+    const val = attrs[schema.key];
+    if (schema.required && (val === undefined || val === null || val === '')) {
+      throw new BadRequestError(`Missing required attribute: '${schema.label || schema.key}'`);
+    }
+
+    if (val !== undefined && val !== null && val !== '') {
+      if (schema.type === 'number') {
+        const num = Number(val);
+        if (Number.isNaN(num)) {
+          throw new BadRequestError(`Attribute '${schema.key}' must be a number`);
+        }
+        if (schema.min !== undefined && num < schema.min) {
+          throw new BadRequestError(`Attribute '${schema.key}' cannot be less than ${schema.min}`);
+        }
+        if (schema.max !== undefined && num > schema.max) {
+          throw new BadRequestError(`Attribute '${schema.key}' cannot be greater than ${schema.max}`);
+        }
+      }
+
+      if (schema.options && Array.isArray(schema.options) && schema.options.length > 0) {
+        if (!schema.options.includes(val)) {
+          throw new BadRequestError(
+            `Invalid value '${val}' for attribute '${schema.key}'. Allowed: ${schema.options.join(', ')}`
+          );
+        }
+      }
+    }
+  }
+
+  return attrs;
+};

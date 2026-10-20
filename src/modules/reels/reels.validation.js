@@ -1,6 +1,6 @@
 /**
  * Reels request validation.
- * Uses Zod v4. Each exported schema covers one route's inputs.
+ * Uses Zod. Each exported schema covers one route's inputs.
  */
 
 import { z } from 'zod';
@@ -21,16 +21,16 @@ const hashtags = z
 export const createReelSchema = z.object({
   caption: z.string().max(2200, 'Caption too long').optional(),
   hashtags,
-  categoryId: z.string().uuid().optional(),
-  locationText: z.string().max(200).optional(),
-  listingId: z.string().uuid().optional(),
+  categoryId: z.string().uuid().optional().nullable(),
+  locationText: z.string().max(200).optional().nullable(),
+  listingId: z.string().uuid().optional().nullable(),
   // Media metadata — supplied by client after upload or for stub testing
-  videoStorageKey: z.string().max(500).optional(),
-  thumbnailStorageKey: z.string().max(500).optional(),
-  videoProvider: z.string().max(50).optional(),
-  durationMs: z.number().int().positive().optional(),
-  width: z.number().int().positive().optional(),
-  height: z.number().int().positive().optional(),
+  videoStorageKey: z.string().max(500).optional().nullable(),
+  thumbnailStorageKey: z.string().max(500).optional().nullable(),
+  videoProvider: z.string().max(50).optional().nullable(),
+  durationMs: z.number().int().positive().optional().nullable(),
+  width: z.number().int().positive().optional().nullable(),
+  height: z.number().int().positive().optional().nullable(),
 });
 
 // ── Update (PATCH — partial) ──────────────────────────────────
@@ -42,8 +42,9 @@ export const updateReelSchema = z
     categoryId: z.string().uuid().optional().nullable(),
     locationText: z.string().max(200).optional().nullable(),
     listingId: z.string().uuid().optional().nullable(),
+    status: z.enum(Object.values(REEL_STATUS)).optional(),
   })
-  .strict();  // reject unknown keys
+  .strict();
 
 // ── Route params ─────────────────────────────────────────────
 
@@ -64,11 +65,13 @@ export const listReelsQuerySchema = z.object({
     .optional()
     .transform((v) => (v ? parseInt(v, 10) : PAGINATION.DEFAULT_LIMIT))
     .pipe(z.number().int().min(1).max(PAGINATION.MAX_LIMIT)),
+  cursor: z.string().optional(),
   status: z
     .enum(Object.values(REEL_STATUS))
     .optional()
     .default(REEL_STATUS.PUBLISHED),
   creatorId: z.string().min(1).max(100).optional(),
+  categoryId: z.string().uuid().optional(),
 });
 
 // ── Signed upload request ─────────────────────────────────────
@@ -77,4 +80,15 @@ export const uploadRequestSchema = z.object({
   fileName: z.string().min(1).max(255),
   fileType: z.enum(['video/mp4', 'video/quicktime', 'video/webm', 'video/x-msvideo']),
   fileSizeBytes: z.number().int().positive().max(500 * 1024 * 1024, 'Max 500 MB'),
+});
+
+// ── Engagement ────────────────────────────────────────────────
+
+export const createCommentSchema = z.object({
+  text: z.string().trim().min(1, 'Comment cannot be empty').max(1000, 'Comment too long'),
+}).strict();
+
+export const listCommentsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
 });

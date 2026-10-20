@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { env } from '../../config/env.js';
@@ -6,8 +7,10 @@ import {
   ConflictError,
   UnauthorizedError,
   BadRequestError,
+  NotFoundError,
 } from '../../utils/errors.js';
-import { AUTH_MESSAGES } from './auth.constants.js';
+import { AUTH_MESSAGES, OTP_PURPOSES } from './auth.constants.js';
+import { sendOtpEmail } from '../../utils/email.js';
 
 /**
  * Strips sensitive fields like passwordHash from user object before returning.
@@ -24,8 +27,10 @@ export const sanitizeUser = (user) => {
 const parseDurationMs = (durationStr) => {
   const match = /^(\d+)([smhd])$/.exec(String(durationStr));
   if (!match) return 7 * 24 * 60 * 60 * 1000;
+
   const val = parseInt(match[1], 10);
   const unit = match[2];
+
   switch (unit) {
     case 's':
       return val * 1000;
@@ -57,6 +62,7 @@ export const generateTokenPair = async (user) => {
   const refreshPayload = {
     sub: user.id,
     type: 'refresh',
+    jti: crypto.randomUUID(),
   };
 
   const refreshToken = jwt.sign(refreshPayload, env.JWT_REFRESH_SECRET, {
@@ -86,12 +92,12 @@ export const register = async ({
   name,
   email,
   password,
-  phone,
-  locationCity,
-  locationState,
+  phone = null,
+  locationCity = null,
+  locationState = null,
 }) => {
-  const existingEmail = await repo.findUserByEmail(email);
-  if (existingEmail) {
+  const existingUser = await repo.findUserByEmail(email);
+  if (existingUser) {
     throw new ConflictError(AUTH_MESSAGES.EMAIL_ALREADY_EXISTS);
   }
 
@@ -216,4 +222,129 @@ export const getCurrentUser = async (userId) => {
     throw new UnauthorizedError('User not found or inactive');
   }
   return sanitizeUser(user);
+};
+
+// ── Email OTP Flows (Flow A) ────────────────────────────────────
+
+/**
+ * Requests an email OTP for registration, login, or password reset.
+ */
+export const requestOtp = async ({ email, purpose = OTP_PURPOSES.REGISTRATION }) => {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  // If purpose is LOGIN or PASSWORD_RESET, check that account exists
+  const existingUser = await repo.findUserByEmail(normalizedEmail);
+  if (purpose === OTP_PURPOSES.LOGIN && !existingUser) {
+    throw new NotFoundError('No account found with this email');
+  }
+  if (purpose === OTP_PURPOSES.PASSWORD_RESET && !existingUser) {
+    throw new NotFoundError('No account found with this email');
+  }
+
+  // Generate 6-digit numeric OTP cryptographically
+  const otp = crypto.randomInt(100000, 1000000).toString();
+  const otpHash = await bcrypt.hash(otp, env.BCRYPT_SALT_ROUNDS);
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes expiry
+
+  await repo.createOtp({
+    email: normalizedEmail,
+    otpHash,
+    purpose,
+    expiresAt,
+  });
+
+  await sendOtpEmail({
+    to: normalizedEmail,
+    otp,
+    purpose,
+  });
+
+  return {
+    message: AUTH_MESSAGES.OTP_SENT_SUCCESS,
+    email: normalizedEmail,
+    purpose,
+    expiresAt,
+  };
+};
+
+/**
+ * Verifies email OTP and returns authentication tokens if user exists.
+ */
+export const verifyOtp = async ({ email, otp, purpose = OTP_PURPOSES.REGISTRATION }) => {
+  const normalizedEmail = email.trim().toLowerCase();
+  const latestOtp = await repo.findLatestOtp({ email: normalizedEmail, purpose });
+
+  if (!latestOtp) {
+    throw new BadRequestError(AUTH_MESSAGES.INVALID_OTP);
+  }
+
+  if (new Date() > latestOtp.expiresAt) {
+    throw new BadRequestError(AUTH_MESSAGES.OTP_EXPIRED);
+  }
+
+  if (latestOtp.attempts >= latestOtp.maxAttempts) {
+    throw new BadRequestError(AUTH_MESSAGES.OTP_MAX_ATTEMPTS);
+  }
+
+  const isValid = await bcrypt.compare(otp, latestOtp.otpHash);
+  if (!isValid) {
+    await repo.incrementOtpAttempts(latestOtp.id);
+    throw new BadRequestError(AUTH_MESSAGES.INVALID_OTP);
+  }
+
+  await repo.markOtpVerified(latestOtp.id);
+
+  // If user already exists, authenticate and issue token pair
+  const user = await repo.findUserByEmail(normalizedEmail);
+  if (user) {
+    if (!user.isActive) {
+      throw new UnauthorizedError(AUTH_MESSAGES.USER_INACTIVE);
+    }
+    const tokens = await generateTokenPair(user);
+    return {
+      message: AUTH_MESSAGES.OTP_VERIFIED_SUCCESS,
+      verified: true,
+      user: sanitizeUser(user),
+      tokens,
+    };
+  }
+
+  return {
+    message: AUTH_MESSAGES.OTP_VERIFIED_SUCCESS,
+    verified: true,
+    email: normalizedEmail,
+    purpose,
+  };
+};
+
+/**
+ * Reset password using verified OTP.
+ */
+export const resetPassword = async ({ email, otp, newPassword }) => {
+  const normalizedEmail = email.trim().toLowerCase();
+  const user = await repo.findUserByEmail(normalizedEmail);
+  if (!user) {
+    throw new NotFoundError('No account found with this email');
+  }
+
+  // Verify OTP for PASSWORD_RESET
+  const verification = await verifyOtp({
+    email: normalizedEmail,
+    otp,
+    purpose: OTP_PURPOSES.PASSWORD_RESET,
+  });
+
+  if (!verification.verified) {
+    throw new BadRequestError(AUTH_MESSAGES.INVALID_OTP);
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, env.BCRYPT_SALT_ROUNDS);
+  await repo.updateUserPassword(user.id, passwordHash);
+
+  // Revoke all existing sessions for security
+  await repo.revokeAllUserTokens(user.id);
+
+  return {
+    message: AUTH_MESSAGES.PASSWORD_RESET_SUCCESS,
+  };
 };

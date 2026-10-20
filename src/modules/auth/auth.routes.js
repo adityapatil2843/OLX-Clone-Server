@@ -6,13 +6,16 @@ import {
   loginSchema,
   refreshSchema,
   logoutSchema,
+  requestOtpSchema,
+  verifyOtpSchema,
+  passwordResetSchema,
 } from './auth.validation.js';
 import { authenticate } from '../../middlewares/authenticate.js';
 import { authLimiter } from '../../middlewares/rateLimiter.js';
 
 const router = Router();
 
-// Apply auth rate limiting to registration and login
+// Apply auth rate limiting to sensitive registration and login endpoints
 router.post(
   '/register',
   authLimiter,
@@ -43,6 +46,29 @@ router.get(
   '/me',
   authenticate,
   controller.getMe
+);
+
+// ── Email OTP Endpoints (Flow A) ──────────────────────────────
+
+router.post(
+  '/otp/request',
+  authLimiter,
+  validate({ body: requestOtpSchema }),
+  controller.requestOtp
+);
+
+router.post(
+  '/otp/verify',
+  authLimiter,
+  validate({ body: verifyOtpSchema }),
+  controller.verifyOtp
+);
+
+router.post(
+  '/password-reset',
+  authLimiter,
+  validate({ body: passwordResetSchema }),
+  controller.resetPassword
 );
 
 export default router;

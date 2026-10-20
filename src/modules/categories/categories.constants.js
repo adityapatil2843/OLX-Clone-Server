@@ -11,4 +11,5 @@ export const CATEGORY_UPDATABLE_FIELDS = Object.freeze([
   'parentId',
   'isActive',
   'displayOrder',
+  'attributes',
 ]);

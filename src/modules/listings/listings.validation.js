@@ -16,6 +16,9 @@ export const createListingSchema = z.object({
   locationState: optionalText(100),
   locationCity: optionalText(100),
   locationLocality: optionalText(150),
+  latitude: z.coerce.number().min(-90).max(90).optional().nullable(),
+  longitude: z.coerce.number().min(-180).max(180).optional().nullable(),
+  attributes: z.record(z.any()).optional().nullable(),
   contactPhone: phone,
   status: z.enum([LISTING_STATUS.DRAFT, LISTING_STATUS.ACTIVE]).default(LISTING_STATUS.ACTIVE),
 }).strict();
@@ -29,8 +32,11 @@ export const updateListingSchema = z.object({
   locationState: optionalText(100),
   locationCity: optionalText(100),
   locationLocality: optionalText(150),
+  latitude: z.coerce.number().min(-90).max(90).optional().nullable(),
+  longitude: z.coerce.number().min(-180).max(180).optional().nullable(),
+  attributes: z.record(z.any()).optional().nullable(),
   contactPhone: phone.optional(),
-  status: z.enum([LISTING_STATUS.DRAFT, LISTING_STATUS.ACTIVE, LISTING_STATUS.SOLD]).optional(),
+  status: z.enum([LISTING_STATUS.DRAFT, LISTING_STATUS.ACTIVE, LISTING_STATUS.SOLD, LISTING_STATUS.ARCHIVED]).optional(),
 }).strict();
 
 export const publicListingsQuerySchema = z.object({
@@ -39,11 +45,25 @@ export const publicListingsQuerySchema = z.object({
   city: z.string().trim().max(100).optional(),
   minPrice: z.coerce.number().nonnegative().optional(),
   maxPrice: z.coerce.number().positive().optional(),
+  latitude: z.coerce.number().min(-90).max(90).optional(),
+  longitude: z.coerce.number().min(-180).max(180).optional(),
+  radius: z.coerce.number().positive().max(1000).optional(),
+  search: z.string().trim().max(100).optional(),
+  sortBy: z.enum(['newest', 'price_asc', 'price_desc', 'distance']).optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(LISTING_PAGINATION.MAX_LIMIT).default(LISTING_PAGINATION.DEFAULT_LIMIT),
 }).refine((data) => data.maxPrice === undefined || data.minPrice === undefined || data.maxPrice >= data.minPrice, {
   message: 'maxPrice must be greater than or equal to minPrice',
   path: ['maxPrice'],
+}).refine((data) => {
+  // If latitude is provided, longitude must be provided, and vice versa
+  if ((data.latitude !== undefined && data.longitude === undefined) || (data.longitude !== undefined && data.latitude === undefined)) {
+    return false;
+  }
+  return true;
+}, {
+  message: 'Both latitude and longitude must be provided together',
+  path: ['latitude'],
 });
 
 export const myListingsQuerySchema = z.object({
@@ -72,4 +92,8 @@ export const attachMediaSchema = z.object({
   provider: z.literal('cloudinary').default('cloudinary'),
   thumbnailKey: z.string().trim().min(1).max(500).optional().nullable(),
   displayOrder: z.coerce.number().int().min(0).max(100).default(0),
+}).strict();
+
+export const updateListingStatusSchema = z.object({
+  status: z.enum([LISTING_STATUS.DRAFT, LISTING_STATUS.ACTIVE, LISTING_STATUS.SOLD, LISTING_STATUS.ARCHIVED]),
 }).strict();

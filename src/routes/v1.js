@@ -5,26 +5,35 @@ import usersRouter from '../modules/users/users.routes.js';
 import reelsRouter from '../modules/reels/reels.routes.js';
 import listingsRouter from '../modules/listings/listings.routes.js';
 import wishlistRouter from '../modules/wishlist/wishlist.routes.js';
-import { authenticate } from '../middlewares/authenticate.js';
+import advertisementsRouter from '../modules/advertisements/advertisements.routes.js';
+import chatRouter from '../modules/chat/chat.routes.js';
+import adminRouter from '../modules/admin/admin.routes.js';
+import reportsRouter from '../modules/admin/reports.routes.js';
 
 const router = Router();
 
-// ── Auth Module ───────────────────────────────────────────────
+// ── Authentication & Profiles ─────────────────────────────────
 router.use('/auth', authRouter);
-
-// ── Categories Module ─────────────────────────────────────────
-router.use('/categories', categoriesRouter);
-
-// ── Users Module ──────────────────────────────────────────────
 router.use('/users', usersRouter);
 
-// ── Marketplace Module ───────────────────────────────────────
+// ── Categories & Taxonomy ─────────────────────────────────────
+router.use('/categories', categoriesRouter);
+
+// ── Classified Marketplace & Saved Items ──────────────────────
 router.use('/listings', listingsRouter);
 router.use('/wishlist', wishlistRouter);
 
-// ── Reels Module ──────────────────────────────────────────────
-// authenticate validates Bearer tokens and attaches req.user / req.creatorId.
-// In development, falls back safely to DEV_TEST_CREATOR_ID if configured.
-router.use('/reels', authenticate, reelsRouter);
+// ── Short-Form Video Reels & Discovery ─────────────────────────
+router.use('/reels', reelsRouter);
+
+// ── Commercial Campaigns & Advertisements ─────────────────────
+router.use('/advertisements', advertisementsRouter);
+
+// ── Buyer-Seller Chat & Messaging ─────────────────────────────
+router.use('/conversations', chatRouter);
+
+// ── Moderation, Complaints & Admin ────────────────────────────
+router.use('/reports', reportsRouter);
+router.use('/admin', adminRouter);
 
 export default router;

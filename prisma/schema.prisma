@@ -11,9 +11,7 @@ datasource db {
 }
 
 // ────────────────────────────────────────────────────────────
-// Reels Module — First Slice
-// Future modules (Users, Listings, Categories) will add
-// foreign-key relationships via their own reviewed migrations.
+// Enums
 // ────────────────────────────────────────────────────────────
 
 enum ReelStatus {
@@ -36,76 +34,77 @@ enum ListingMediaType {
   VIDEO
 }
 
-model Reel {
-  id                 String      @id @default(uuid())
-
-  // Creator identity — plain string until Users module exists
-  // Replace with: creator   User   @relation(fields: [creatorId], references: [id])
-  creatorId          String
-
-  // Content
-  caption            String?
-  hashtags           String[]    @default([])
-  categoryId         String?     // plain id until Categories module exists
-  locationText       String?
-
-  // Media — object-storage keys, not public URLs
-  videoStorageKey    String?
-  thumbnailStorageKey String?
-  videoProvider      String?     // e.g. "cloudinary", "supabase-storage"
-  durationMs         Int?
-  width              Int?
-  height             Int?
-
-  // Future listing reference — no FK until Listings module exists
-  listingId          String?
-
-  // Lifecycle
-  status             ReelStatus  @default(DRAFT)
-
-  // Timestamps
-  createdAt          DateTime    @default(now())
-  updatedAt          DateTime    @updatedAt
-  deletedAt          DateTime?   // soft-delete marker
-
-  // ── Indexes ──────────────────────────────────────────────
-  // Feed: published, non-deleted, newest first
-  @@index([status, deletedAt, createdAt(sort: Desc)])
-  // Creator's own reels
-  @@index([creatorId, deletedAt, createdAt(sort: Desc)])
-  // Moderation / status filtering
-  @@index([status])
-}
-
-// ────────────────────────────────────────────────────────────
-// User & Profile Module
-// ────────────────────────────────────────────────────────────
-
 enum UserRole {
   USER
   ADMIN
   MODERATOR
 }
 
+enum AdTargetType {
+  LISTING
+  REEL
+}
+
+enum AdStatus {
+  ACTIVE
+  PAUSED
+  STOPPED
+  COMPLETED
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  LISTING_SHARE
+}
+
+enum ReportTargetType {
+  USER
+  LISTING
+  REEL
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  RESOLVED
+  DISMISSED
+}
+
+// ────────────────────────────────────────────────────────────
+// User & Profile Module
+// ────────────────────────────────────────────────────────────
+
 model User {
-  id               String         @id @default(uuid())
-  phone            String?        @unique
-  email            String?        @unique
+  id               String                    @id @default(uuid())
+  phone            String?                   @unique
+  email            String?                   @unique
   passwordHash     String?
   name             String
   avatarUrl        String?
   bio              String?
   locationState    String?
   locationCity     String?
-  role             UserRole       @default(USER)
-  isVerifiedSeller Boolean        @default(false)
-  isActive         Boolean        @default(true)
+  role             UserRole                  @default(USER)
+  isVerifiedSeller Boolean                   @default(false)
+  isActive         Boolean                   @default(true)
   deletedAt        DateTime?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+
   refreshTokens    RefreshToken[]
   listings         Listing[]
   wishlistItems    Wishlist[]
+  reels            Reel[]
+  reelLikes        ReelLike[]
+  reelComments     ReelComment[]
+  savedReels       SavedReel[]
+  advertisements   Advertisement[]
+  conversations    ConversationParticipant[]
+  sentMessages     Message[]
+  reportsFiled     Report[]
+  auditLogs        AdminAuditLog[]
+  mediaAssets      MediaAsset[]
 
   @@index([phone])
   @@index([email])
@@ -126,6 +125,20 @@ model RefreshToken {
   @@index([token])
 }
 
+model EmailOtp {
+  id          String    @id @default(uuid())
+  email       String
+  otpHash     String
+  purpose     String    @default("REGISTRATION") // REGISTRATION, LOGIN, PASSWORD_RESET
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(5)
+  expiresAt   DateTime
+  verifiedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([email, purpose, expiresAt])
+}
+
 // ────────────────────────────────────────────────────────────
 // Category Module (Dynamic categories & hierarchy)
 // ────────────────────────────────────────────────────────────
@@ -139,11 +152,14 @@ model Category {
   parentId     String?
   parent       Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
   children     Category[] @relation("CategoryHierarchy")
+  attributes   Json?      // Category-specific attribute schemas: [{ key, label, type, required, options, min, max, unit }]
   isActive     Boolean    @default(true)
   displayOrder Int        @default(0)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
+
   listings     Listing[]
+  reels        Reel[]
 
   @@index([slug])
   @@index([parentId, isActive, displayOrder])
@@ -151,47 +167,55 @@ model Category {
 }
 
 // ────────────────────────────────────────────────────────────
-// Marketplace listings and buyer wishlists
+// Marketplace Listings and Media
 // ────────────────────────────────────────────────────────────
 
 model Listing {
-  id              String        @id @default(uuid())
-  ownerId         String
-  owner           User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  categoryId      String
-  category        Category      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  title           String
-  price           Decimal       @db.Decimal(12, 2)
-  currency        String        @default("INR") @db.VarChar(3)
-  description     String?
-  locationState   String?
-  locationCity    String?
+  id               String          @id @default(uuid())
+  ownerId          String
+  owner            User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  categoryId       String
+  category         Category        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  title            String
+  price            Decimal         @db.Decimal(12, 2)
+  currency         String          @default("INR") @db.VarChar(3)
+  description      String?
+  locationState    String?
+  locationCity     String?
   locationLocality String?
-  contactPhone    String
-  status          ListingStatus @default(ACTIVE)
-  media           ListingMedia[]
+  latitude         Float?
+  longitude        Float?
+  contactPhone     String
+  status           ListingStatus   @default(ACTIVE)
+  attributes       Json?           // Validated category-specific key-values e.g. { brand: "Honda", year: 2022 }
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  deletedAt        DateTime?
+
+  media            ListingMedia[]
   wishlistedBy     Wishlist[]
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  deletedAt       DateTime?
+  reels            Reel[]
+  advertisements   Advertisement[]
+  conversations    Conversation[]
 
   @@index([ownerId, status, deletedAt, createdAt(sort: Desc)])
   @@index([categoryId, status, deletedAt, createdAt(sort: Desc)])
   @@index([status, deletedAt, createdAt(sort: Desc)])
   @@index([locationState, locationCity, status, deletedAt])
+  @@index([latitude, longitude])
   @@index([price])
 }
 
 model ListingMedia {
-  id            String           @id @default(uuid())
-  listingId     String
-  listing       Listing          @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  type          ListingMediaType
-  storageKey    String
-  provider      String
-  thumbnailKey  String?
-  displayOrder  Int              @default(0)
-  createdAt     DateTime         @default(now())
+  id           String           @id @default(uuid())
+  listingId    String
+  listing      Listing          @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  type         ListingMediaType
+  storageKey   String
+  provider     String
+  thumbnailKey String?
+  displayOrder Int              @default(0)
+  createdAt    DateTime         @default(now())
 
   @@unique([listingId, storageKey])
   @@index([listingId, displayOrder])
@@ -210,3 +234,231 @@ model Wishlist {
   @@index([listingId])
 }
 
+// ────────────────────────────────────────────────────────────
+// Media Asset Module
+// ────────────────────────────────────────────────────────────
+
+model MediaAsset {
+  id           String   @id @default(uuid())
+  ownerId      String
+  owner        User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  mediaType    String   // VIDEO, IMAGE
+  purpose      String   // REEL_VIDEO, LISTING_IMAGE, AVATAR
+  storageKey   String
+  provider     String   @default("cloudinary")
+  mimeType     String?
+  sizeBytes    Int?
+  durationMs   Int?
+  width        Int?
+  height       Int?
+  thumbnailKey String?
+  status       String   @default("READY") // PENDING, PROCESSING, READY, FAILED
+  createdAt    DateTime @default(now())
+
+  reels        Reel[]
+
+  @@index([ownerId, createdAt(sort: Desc)])
+  @@index([storageKey])
+}
+
+// ────────────────────────────────────────────────────────────
+// Reels & Video Discovery Module
+// ────────────────────────────────────────────────────────────
+
+model Reel {
+  id                  String         @id @default(uuid())
+  creatorId           String
+  creator             User?          @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  caption             String?
+  hashtags            String[]       @default([])
+  categoryId          String?
+  category            Category?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  locationText        String?
+
+  mediaAssetId        String?
+  mediaAsset          MediaAsset?    @relation(fields: [mediaAssetId], references: [id], onDelete: SetNull)
+
+  videoStorageKey     String?
+  thumbnailStorageKey String?
+  videoProvider       String?
+  durationMs          Int?
+  width               Int?
+  height              Int?
+
+  listingId           String?
+  listing             Listing?       @relation(fields: [listingId], references: [id], onDelete: SetNull)
+
+  status              ReelStatus     @default(DRAFT)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  deletedAt           DateTime?
+
+  likes               ReelLike[]
+  comments            ReelComment[]
+  savedBy             SavedReel[]
+  advertisements      Advertisement[]
+  reports             Report[]
+
+  @@index([status, deletedAt, createdAt(sort: Desc)])
+  @@index([creatorId, deletedAt, createdAt(sort: Desc)])
+  @@index([listingId])
+  @@index([categoryId])
+  @@index([status])
+}
+
+model ReelLike {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reelId    String
+  reel      Reel     @relation(fields: [reelId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, reelId])
+  @@index([reelId, createdAt(sort: Desc)])
+}
+
+model ReelComment {
+  id        String    @id @default(uuid())
+  reelId    String
+  reel      Reel      @relation(fields: [reelId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  text      String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([reelId, createdAt(sort: Desc)])
+}
+
+model SavedReel {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reelId    String
+  reel      Reel     @relation(fields: [reelId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, reelId])
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+// ────────────────────────────────────────────────────────────
+// Advertisements & Sponsored Content
+// ────────────────────────────────────────────────────────────
+
+model Advertisement {
+  id         String       @id @default(uuid())
+  ownerId    String
+  owner      User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  targetType AdTargetType
+  targetId   String
+  title      String
+  budget     Decimal?     @db.Decimal(10, 2)
+  status     AdStatus     @default(ACTIVE)
+  startDate  DateTime     @default(now())
+  endDate    DateTime?
+  stoppedAt  DateTime?
+
+  listingId  String?
+  listing    Listing?     @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  reelId     String?
+  reel       Reel?        @relation(fields: [reelId], references: [id], onDelete: SetNull)
+
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  @@index([ownerId, status])
+  @@index([targetType, targetId, status])
+  @@index([listingId, status])
+}
+
+// ────────────────────────────────────────────────────────────
+// Chat & Messaging Module
+// ────────────────────────────────────────────────────────────
+
+model Conversation {
+  id              String                    @id @default(uuid())
+  listingId       String?
+  listing         Listing?                  @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  lastMessageText String?
+  lastMessageAt   DateTime?
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+
+  participants    ConversationParticipant[]
+  messages        Message[]
+
+  @@index([listingId])
+  @@index([updatedAt(sort: Desc)])
+}
+
+model ConversationParticipant {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unreadCount    Int          @default(0)
+  lastReadAt     DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@unique([conversationId, userId])
+  @@index([userId, conversationId])
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  type           MessageType  @default(TEXT)
+  content        String
+  isRead         Boolean      @default(false)
+  readAt         DateTime?
+  createdAt      DateTime     @default(now())
+  deletedAt      DateTime?
+
+  @@index([conversationId, createdAt(sort: Asc)])
+}
+
+// ────────────────────────────────────────────────────────────
+// Admin, Moderation & Audit Module
+// ────────────────────────────────────────────────────────────
+
+model Report {
+  id              String           @id @default(uuid())
+  reporterId      String
+  reporter        User             @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  targetType      ReportTargetType
+  targetId        String
+  reason          String
+  details         String?
+  status          ReportStatus     @default(PENDING)
+  resolutionNotes String?
+  resolvedAt      DateTime?
+  reelId          String?
+  reel            Reel?            @relation(fields: [reelId], references: [id], onDelete: SetNull)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([targetType, targetId, status])
+  @@index([status, createdAt(sort: Desc)])
+}
+
+model AdminAuditLog {
+  id         String   @id @default(uuid())
+  adminId    String
+  admin      User     @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  action     String
+  targetType String
+  targetId   String
+  details    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([adminId, createdAt(sort: Desc)])
+  @@index([targetType, targetId])
+}

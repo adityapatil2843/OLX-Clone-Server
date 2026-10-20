@@ -48,3 +48,30 @@ export const getMe = async (req, res, next) => {
     next(err);
   }
 };
+
+export const requestOtp = async (req, res, next) => {
+  try {
+    const result = await service.requestOtp(req.body);
+    successResponse(res, result, 200);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const verifyOtp = async (req, res, next) => {
+  try {
+    const result = await service.verifyOtp(req.body);
+    successResponse(res, result, 200);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const resetPassword = async (req, res, next) => {
+  try {
+    const result = await service.resetPassword(req.body);
+    successResponse(res, result, 200);
+  } catch (err) {
+    next(err);
+  }
+};

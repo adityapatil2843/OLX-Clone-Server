@@ -288,74 +288,76 @@ Do not provision billable resources without owner approval.
 
 ## 10. Session handoff
 
-Update after every Anti-Gravity session:
-
 - Completed and verified:
-  1. Shared backend foundations:
-     - Strict environment variable validation using Zod in [src/config/env.js](file:///c:/Users/onein/OneDrive/Desktop/.vscode/Freelance/OLX-Proj1/server/src/config/env.js).
-     - Structured Pino logging with request ID generation/propagation and sensitive header/field redaction in [src/config/logger.js](file:///c:/Users/onein/OneDrive/Desktop/.vscode/Freelance/OLX-Proj1/server/src/config/logger.js).
-     - Standard error hierarchy (`ApiError`, `BadRequestError`, `UnauthorizedError`, `ForbiddenError`, `NotFoundError`, `ConflictError`, `ValidationError`) in [src/utils/errors.js](file:///c:/Users/onein/OneDrive/Desktop/.vscode/Freelance/OLX-Proj1/server/src/utils/errors.js).
-     - Standard API success and error envelopes in [src/utils/response.js](file:///c:/Users/onein/OneDrive/Desktop/.vscode/Freelance/OLX-Proj1/server/src/utils/response.js).
-     - Reusable request validation middleware supporting Express 5 in [src/middlewares/validate.js](file:///c:/Users/onein/OneDrive/Desktop/.vscode/Freelance/OLX-Proj1/server/src/middlewares/validate.js).
-     - Rate limiting on `/api/` endpoints via `express-rate-limit` in [src/middlewares/rateLimiter.js](file:///c:/Users/onein/OneDrive/Desktop/.vscode/Freelance/OLX-Proj1/server/src/middlewares/rateLimiter.js).
-     - Safe CORS origin handling (wildcard origin forbids credentials, explicit origins allow credentials).
-     - Centralized error handler in [src/middlewares/errorHandler.js](file:///c:/Users/onein/OneDrive/Desktop/.vscode/Freelance/OLX-Proj1/server/src/middlewares/errorHandler.js).
-     - Versioned route aggregator [src/routes/v1.js](file:///c:/Users/onein/OneDrive/Desktop/.vscode/Freelance/OLX-Proj1/server/src/routes/v1.js) mounted under `/api/v1`.
-  2. Database Models & Migrations:
-     - Modeled `User` and `Category` with subcategory self-relations and indexes in `prisma/schema.prisma`.
-     - Created and applied migration `20261017183000_add_user_and_category_models` to Supabase PostgreSQL.
-     - Regenerated Prisma Client v7.10.1 with `User` and `Category`.
-     - Resolved previous migration status for `20261017100827_create_reels_post` in `_prisma_migrations`.
-  3. Category Module (Priority E):
-     - Implemented full modular structure: constants, validation, repository, service, controller, and routes.
-     - Supports hierarchical category tree (`?tree=true`), flat list with parent filtering, slug lookup, slug conflict prevention, and soft deactivation.
-  4. User Module (Priority B & C):
-     - Implemented modular structure: constants, validation, repository, service, controller, and routes.
-     - Public profile projection (never leaks email or phone numbers).
-     - Strict profile updates (forbids self-assignment of `role`, `isVerifiedSeller`, `isActive`).
-  5. Reels Progress & Defects Fixed (Priority F):
-     - Fixed `creatorId` query parameter validation in [src/modules/reels/reels.validation.js](file:///c:/Users/onein/OneDrive/Desktop/.vscode/Freelance/OLX-Proj1/server/src/modules/reels/reels.validation.js) to accept string identifiers (e.g. `dev-creator-001`).
-     - Aligned `ReelError` with standard `ApiError`.
-  6. Automated Testing:
-     - Configured `"test": "node --test tests/**/*.test.js"` in `package.json`.
-     - Added comprehensive tests across foundation, categories, users, and reels.
-     - Verified all 7 test suites pass cleanly.
-- Files changed:
+  1. Phase Zero Audit & DB Technology Conflict Resolution:
+     - Verified authoritative database is PostgreSQL with Prisma ORM (`@prisma/client`, `@prisma/adapter-pg`, `pg`).
+     - Initialized local development PostgreSQL 18 instance on port 5433 with database `olx_marketplace`.
+     - Added `pgdata/` to `.gitignore`.
+  2. Database Schema & Models Expansion:
+     - Modeled `User`, `Category` (with `attributes` JSON for managed definitions), `Listing` (with `attributes`, `latitude`, `longitude`), `ListingMedia`, `Wishlist`.
+     - Modeled `Reel` (relational creator, listing, category links), `ReelLike`, `ReelComment`, `SavedReel`, `MediaAsset`.
+     - Modeled `Advertisement` (commercial campaigns linked to listings/reels).
+     - Modeled `Conversation`, `ConversationParticipant`, `Message` (REST chat).
+     - Modeled `Report` and `AdminAuditLog` (admin and moderation).
+     - Modeled `EmailOtp` (secure hashed OTP storage with expiry and attempt limits).
+     - Applied schema via `npx prisma db push` and generated Prisma Client v7.10.1.
+  3. Authentication Module (Flow A):
+     - Resolved RefreshToken unique constraint collision by generating unique `jti: crypto.randomUUID()` in refresh payload.
+     - Implemented `requestOtp`, `verifyOtp`, and `resetPassword` in `auth.service.js`.
+     - Created `src/utils/email.js` for secure OTP dispatch and non-production test verification.
+     - Protected routes with `authLimiter` and strict validation.
+  4. Categories Module (Section 5.2):
+     - Added comprehensive seed script in `prisma/seed.js` for all 13 India-focused marketplace categories (Cars, Bikes, Properties, Mobiles, Electronics, Fashion, Jobs, Services, etc.) with rich attribute definitions.
+     - Added `GET /api/v1/categories/:idOrSlug/attributes` endpoint.
+     - Implemented `validateCategoryAttributes` validation helper.
+  5. Listings Module (Flow B, Flow D, Flow E):
+     - Added category attribute validation on listing create and update.
+     - Added coordinates (`latitude`, `longitude`) with Haversine distance radius filtering and sorting.
+     - Added `PATCH /api/v1/listings/:id/status` endpoint.
+     - Added maximum 12 media limit enforcement.
+     - Automatically stopped dependent advertising campaigns upon marking a listing `SOLD` or `ARCHIVED`.
+  6. Reels Module (Flow C):
+     - Upgraded feed to support cursor-based pagination (`?cursor=...&limit=...`).
+     - Populated creator details and linked listing details in Reel responses.
+     - Added like/unlike endpoints (`POST/DELETE /api/v1/reels/:id/like`).
+     - Added save/unsave endpoints (`POST/DELETE /api/v1/reels/:id/save`).
+     - Added comment endpoints (`GET/POST /api/v1/reels/:id/comments`).
+     - Configured public feed discovery with `optionalAuthenticate`.
+  7. Advertisements Module (Flow E):
+     - Built modular `src/modules/advertisements/*` (routes, controller, service, repository, validation).
+     - Implemented idempotent `stopListingAdvertisements(listingId)` called on listing status change.
+  8. Chat Module (Flow F):
+     - Built modular `src/modules/chat/*` for buyer-seller conversations and messages.
+     - Enforced strict participant authorization on every conversation read and message dispatch (403 Forbidden for non-participants).
+     - Added cursor pagination for message history.
+  9. Admin & Moderation Module (Flow G):
+     - Built `src/middlewares/authorize.js` with `requireRole(['ADMIN', 'MODERATOR'])`.
+     - Built modular `src/modules/admin/*` for platform metrics, listing/reel/user moderation, user reports, and audit logging.
+     - Added `POST /api/v1/reports` for public user complaint filing.
+  10. End-to-End Automated Testing:
+     - Configured `npm test` script to `node --test tests/`.
+     - Created `tests/marketplace-flows.test.js` covering Flows A, B, C, D, E, F, and G.
+     - Ran full test suite: 17 out of 17 tests passed with 0 failures.
+- Files changed / created:
+  - `.gitignore`
+  - `.env`
   - `package.json`
-  - `prisma7.config.ts`
   - `prisma/schema.prisma`
-  - `prisma/migrations/20261017183000_add_user_and_category_models/migration.sql`
-  - `src/app.js`
-  - `src/server.js`
-  - `src/config/env.js`
-  - `src/config/logger.js`
-  - `src/utils/errors.js`
-  - `src/utils/response.js`
-  - `src/middlewares/validate.js`
-  - `src/middlewares/rateLimiter.js`
-  - `src/middlewares/errorHandler.js`
-  - `src/middlewares/authBoundary.js`
-  - `src/middlewares/devCreatorIdentity.js`
-  - `src/db/prisma.js`
-  - `src/routes/v1.js`
+  - `prisma/seed.js`
+  - `src/utils/email.js`
+  - `src/middlewares/authenticate.js`
+  - `src/middlewares/authorize.js`
+  - `src/modules/auth/*`
   - `src/modules/categories/*`
-  - `src/modules/users/*`
-  - `src/modules/reels/reels.validation.js`
-  - `src/modules/reels/reels.service.js`
-  - `tests/*`
+  - `src/modules/listings/*`
+  - `src/modules/reels/*`
+  - `src/modules/advertisements/*`
+  - `src/modules/chat/*`
+  - `src/modules/admin/*`
+  - `src/routes/v1.js`
+  - `tests/marketplace-flows.test.js`
   - `BACKEND_TRACKER.md`
-- Migrations added:
-  - `20261017183000_add_user_and_category_models` (Applied and verified)
-  - `20261019120000_add_password_hash_and_refresh_tokens` (Applied and verified)
-- Commands/tests and results:
-  - `npm test`: Exit 0 (8 passed, 0 failed, ~23s duration)
-  - `npx prisma validate`: Exit 0 (Schema valid)
-  - `npx prisma generate`: Exit 0 (Generated Prisma Client v7.10.1)
-  - `npx prisma db push`: Exit 0 (Database in sync)
-- Current blockers:
-  - S3-compatible object storage provider needs to be selected to complete real Reels/Media upload lifecycle.
-- Next three tasks:
-  1. Listings Module (Prisma model, category relation, status transitions, pagination).
-  2. S3-Compatible Media Storage & Pre-signed Upload Flow (replacing or augmenting Cloudinary stub).
-  3. Search & Location Filters (PostgreSQL FTS, state/city/locality filtering).
+- Verification commands and results:
+  - `node prisma/seed.js`: Exit 0 (Dev, admin, and 13 categories seeded)
+  - `npm test`: Exit 0 (17 passed, 0 failed, 11.3s duration)
 

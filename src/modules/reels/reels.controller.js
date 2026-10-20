@@ -1,7 +1,6 @@
 /**
  * Reels controller — HTTP layer only.
  * Parses/validates input, calls service, sends response.
- * No business logic lives here.
  */
 
 import * as service from './reels.service.js';
@@ -11,14 +10,16 @@ import {
   reelIdParamSchema,
   listReelsQuerySchema,
   uploadRequestSchema,
+  createCommentSchema,
+  listCommentsQuerySchema,
 } from './reels.validation.js';
 
-// ── Helper: send a consistent success envelope ─────────────────
-
-const ok = (res, data, statusCode = 200) =>
-  res.status(statusCode).json({ success: true, data });
-
-// ── Helper: parse with Zod and forward errors ─────────────────
+const ok = (res, data, statusCode = 200, meta) => {
+  if (meta) {
+    return res.status(statusCode).json({ success: true, data, meta });
+  }
+  return res.status(statusCode).json({ success: true, data });
+};
 
 const parseOrThrow = (schema, input) => {
   const result = schema.safeParse(input);
@@ -48,8 +49,8 @@ export const createReel = async (req, res, next) => {
 export const listReels = async (req, res, next) => {
   try {
     const query = parseOrThrow(listReelsQuerySchema, req.query);
-    const result = await service.listReels(query);
-    ok(res, result);
+    const result = await service.listReels(query, req.user?.id);
+    ok(res, result.data, 200, result.meta);
   } catch (err) {
     next(err);
   }
@@ -60,7 +61,7 @@ export const listReels = async (req, res, next) => {
 export const getReelById = async (req, res, next) => {
   try {
     const { reelId } = parseOrThrow(reelIdParamSchema, req.params);
-    const reel = await service.getReelById(reelId);
+    const reel = await service.getReelById(reelId, req.user?.id);
     ok(res, reel);
   } catch (err) {
     next(err);
@@ -97,7 +98,6 @@ export const deleteReel = async (req, res, next) => {
 export const requestUploadUrl = async (req, res, next) => {
   try {
     const { reelId } = parseOrThrow(reelIdParamSchema, req.params);
-    // Validate the upload metadata the client describes
     parseOrThrow(uploadRequestSchema, req.body);
     const params = service.requestUpload(reelId, req.creatorId);
     ok(res, params);
@@ -126,6 +126,70 @@ export const confirmUpload = async (req, res, next) => {
       req.creatorId
     );
     ok(res, reel);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ── Engagement Handlers ────────────────────────────────────────
+
+export const likeReel = async (req, res, next) => {
+  try {
+    const { reelId } = parseOrThrow(reelIdParamSchema, req.params);
+    const result = await service.likeReel(reelId, req.user.id);
+    ok(res, result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const unlikeReel = async (req, res, next) => {
+  try {
+    const { reelId } = parseOrThrow(reelIdParamSchema, req.params);
+    const result = await service.unlikeReel(reelId, req.user.id);
+    ok(res, result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const saveReel = async (req, res, next) => {
+  try {
+    const { reelId } = parseOrThrow(reelIdParamSchema, req.params);
+    const result = await service.saveReel(reelId, req.user.id);
+    ok(res, result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const unsaveReel = async (req, res, next) => {
+  try {
+    const { reelId } = parseOrThrow(reelIdParamSchema, req.params);
+    const result = await service.unsaveReel(reelId, req.user.id);
+    ok(res, result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const addComment = async (req, res, next) => {
+  try {
+    const { reelId } = parseOrThrow(reelIdParamSchema, req.params);
+    const { text } = parseOrThrow(createCommentSchema, req.body);
+    const comment = await service.addComment(reelId, req.user.id, text);
+    ok(res, comment, 201);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getComments = async (req, res, next) => {
+  try {
+    const { reelId } = parseOrThrow(reelIdParamSchema, req.params);
+    const query = parseOrThrow(listCommentsQuerySchema, req.query);
+    const result = await service.getComments(reelId, query);
+    ok(res, result.data, 200, result.meta);
   } catch (err) {
     next(err);
   }

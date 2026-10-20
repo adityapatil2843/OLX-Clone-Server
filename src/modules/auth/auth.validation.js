@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { OTP_PURPOSES } from './auth.constants.js';
 
 export const registerSchema = z.object({
   name: z
@@ -43,4 +44,47 @@ export const refreshSchema = z.object({
 
 export const logoutSchema = z.object({
   refreshToken: z.string().optional(),
+});
+
+export const requestOtpSchema = z.object({
+  email: z
+    .string({ required_error: 'Email is required' })
+    .trim()
+    .toLowerCase()
+    .email('Please provide a valid email address'),
+  purpose: z
+    .enum([OTP_PURPOSES.REGISTRATION, OTP_PURPOSES.LOGIN, OTP_PURPOSES.PASSWORD_RESET])
+    .default(OTP_PURPOSES.REGISTRATION),
+});
+
+export const verifyOtpSchema = z.object({
+  email: z
+    .string({ required_error: 'Email is required' })
+    .trim()
+    .toLowerCase()
+    .email('Please provide a valid email address'),
+  otp: z
+    .string({ required_error: 'OTP is required' })
+    .trim()
+    .length(6, 'OTP must be exactly 6 digits')
+    .regex(/^\d+$/, 'OTP must contain numbers only'),
+  purpose: z
+    .enum([OTP_PURPOSES.REGISTRATION, OTP_PURPOSES.LOGIN, OTP_PURPOSES.PASSWORD_RESET])
+    .default(OTP_PURPOSES.REGISTRATION),
+});
+
+export const passwordResetSchema = z.object({
+  email: z
+    .string({ required_error: 'Email is required' })
+    .trim()
+    .toLowerCase()
+    .email('Please provide a valid email address'),
+  otp: z
+    .string({ required_error: 'OTP is required' })
+    .trim()
+    .length(6, 'OTP must be exactly 6 digits'),
+  newPassword: z
+    .string({ required_error: 'New password is required' })
+    .min(8, 'New password must be at least 8 characters')
+    .max(100),
 });

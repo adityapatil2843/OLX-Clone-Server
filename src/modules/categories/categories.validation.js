@@ -15,6 +15,7 @@ export const createCategorySchema = z.object({
   description: z.string().trim().max(500).optional().nullable(),
   iconUrl: z.string().url('Invalid icon URL').optional().nullable(),
   parentId: z.string().uuid('Parent ID must be a valid UUID').optional().nullable(),
+  attributes: z.any().optional().nullable(),
   displayOrder: z.number().int().min(0).default(0),
 });
 
@@ -31,6 +32,7 @@ export const updateCategorySchema = z
     description: z.string().trim().max(500).optional().nullable(),
     iconUrl: z.string().url().optional().nullable(),
     parentId: z.string().uuid().optional().nullable(),
+    attributes: z.any().optional().nullable(),
     isActive: z.boolean().optional(),
     displayOrder: z.number().int().min(0).optional(),
   })

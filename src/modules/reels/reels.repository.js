@@ -6,53 +6,119 @@
 import { prisma } from '../../db/prisma.js';
 import { REEL_STATUS } from './reels.constants.js';
 
+const publicReelInclude = (userId = null) => ({
+  creator: {
+    select: {
+      id: true,
+      name: true,
+      avatarUrl: true,
+      isVerifiedSeller: true,
+    },
+  },
+  listing: {
+    select: {
+      id: true,
+      title: true,
+      price: true,
+      currency: true,
+      status: true,
+      locationCity: true,
+      locationState: true,
+    },
+  },
+  category: {
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+    },
+  },
+  _count: {
+    select: {
+      likes: true,
+      comments: true,
+    },
+  },
+  ...(userId
+    ? {
+        likes: { where: { userId }, select: { id: true } },
+        savedBy: { where: { userId }, select: { id: true } },
+      }
+    : {}),
+});
+
 // ── Create ────────────────────────────────────────────────────
 
-/**
- * @param {object} data  Validated fields from createReelSchema
- * @param {string} creatorId
- */
 export const createReel = async (data, creatorId) => {
   return prisma.reel.create({
     data: {
       ...data,
       creatorId,
     },
+    include: publicReelInclude(creatorId),
   });
 };
 
 // ── Find one (non-deleted) ────────────────────────────────────
 
-export const findReelById = async (reelId) => {
+export const findReelById = async (reelId, userId = null) => {
   return prisma.reel.findFirst({
     where: {
       id: reelId,
       deletedAt: null,
     },
+    include: publicReelInclude(userId),
   });
 };
 
-// ── List / feed ───────────────────────────────────────────────
+// ── List / feed (with cursor support) ─────────────────────────
 
-/**
- * @param {object} opts
- * @param {number} opts.page
- * @param {number} opts.limit
- * @param {string} [opts.status]
- * @param {string} [opts.creatorId]
- */
-export const listReels = async ({ page, limit, status, creatorId }) => {
-  const skip = (page - 1) * limit;
-
+export const listReels = async ({
+  page = 1,
+  limit = 20,
+  cursor,
+  status = REEL_STATUS.PUBLISHED,
+  creatorId,
+  categoryId,
+  userId = null,
+}) => {
   const where = {
     deletedAt: null,
-    status: status ?? REEL_STATUS.PUBLISHED,
+    status,
     ...(creatorId ? { creatorId } : {}),
+    ...(categoryId ? { categoryId } : {}),
   };
+
+  if (cursor) {
+    // Cursor-based pagination
+    const reels = await prisma.reel.findMany({
+      where,
+      include: publicReelInclude(userId),
+      orderBy: { createdAt: 'desc' },
+      take: limit + 1,
+      cursor: { id: cursor },
+      skip: 1,
+    });
+
+    const hasMore = reels.length > limit;
+    const items = hasMore ? reels.slice(0, limit) : reels;
+    const nextCursor = hasMore ? items[items.length - 1].id : null;
+
+    return {
+      reels: items,
+      hasMore,
+      nextCursor,
+      total: null,
+    };
+  }
+
+  // Offset pagination fallback
+  const skip = (page - 1) * limit;
 
   const [reels, total] = await prisma.$transaction([
     prisma.reel.findMany({
       where,
+      include: publicReelInclude(userId),
       orderBy: { createdAt: 'desc' },
       skip,
       take: limit,
@@ -65,23 +131,21 @@ export const listReels = async ({ page, limit, status, creatorId }) => {
 
 // ── Update ────────────────────────────────────────────────────
 
-/**
- * @param {string} reelId
- * @param {object} data  Already validated + allowlisted
- */
 export const updateReel = async (reelId, data) => {
   return prisma.reel.update({
     where: { id: reelId },
     data,
+    include: publicReelInclude(),
   });
 };
 
-// ── Update status (internal — service use only) ───────────────
+// ── Update status ─────────────────────────────────────────────
 
 export const updateReelStatus = async (reelId, status) => {
   return prisma.reel.update({
     where: { id: reelId },
     data: { status },
+    include: publicReelInclude(),
   });
 };
 
@@ -94,21 +158,116 @@ export const softDeleteReel = async (reelId) => {
       deletedAt: new Date(),
       status: REEL_STATUS.ARCHIVED,
     },
+    include: publicReelInclude(),
   });
 };
 
 // ── Update media keys (called after upload confirmation) ──────
 
-/**
- * @param {string} reelId
- * @param {{ videoStorageKey: string, thumbnailStorageKey?: string, videoProvider: string, durationMs?: number, width?: number, height?: number }} mediaData
- */
 export const updateReelMedia = async (reelId, mediaData) => {
   return prisma.reel.update({
     where: { id: reelId },
     data: {
       ...mediaData,
-      status: REEL_STATUS.PROCESSING, // advance lifecycle
+      status: REEL_STATUS.PROCESSING,
+    },
+    include: publicReelInclude(),
+  });
+};
+
+// ── Engagement: Likes ──────────────────────────────────────────
+
+export const likeReel = async (userId, reelId) => {
+  return prisma.reelLike.upsert({
+    where: {
+      userId_reelId: { userId, reelId },
+    },
+    update: {},
+    create: {
+      userId,
+      reelId,
     },
   });
+};
+
+export const unlikeReel = async (userId, reelId) => {
+  return prisma.reelLike.deleteMany({
+    where: {
+      userId,
+      reelId,
+    },
+  });
+};
+
+// ── Engagement: Saves ──────────────────────────────────────────
+
+export const saveReel = async (userId, reelId) => {
+  return prisma.savedReel.upsert({
+    where: {
+      userId_reelId: { userId, reelId },
+    },
+    update: {},
+    create: {
+      userId,
+      reelId,
+    },
+  });
+};
+
+export const unsaveReel = async (userId, reelId) => {
+  return prisma.savedReel.deleteMany({
+    where: {
+      userId,
+      reelId,
+    },
+  });
+};
+
+// ── Engagement: Comments ───────────────────────────────────────
+
+export const createComment = async (userId, reelId, text) => {
+  return prisma.reelComment.create({
+    data: {
+      userId,
+      reelId,
+      text,
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          avatarUrl: true,
+        },
+      },
+    },
+  });
+};
+
+export const listComments = async (reelId, page = 1, limit = 20) => {
+  const where = {
+    reelId,
+    deletedAt: null,
+  };
+
+  const [comments, total] = await prisma.$transaction([
+    prisma.reelComment.findMany({
+      where,
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            avatarUrl: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    prisma.reelComment.count({ where }),
+  ]);
+
+  return { comments, total };
 };

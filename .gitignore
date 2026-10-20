@@ -43,3 +43,4 @@ temp/
 Thumbs.db
 
 /src/generated/prisma
+pgdata/

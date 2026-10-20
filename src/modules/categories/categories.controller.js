@@ -45,3 +45,12 @@ export const deactivateCategory = async (req, res, next) => {
     next(err);
   }
 };
+
+export const getCategoryAttributes = async (req, res, next) => {
+  try {
+    const result = await service.getCategoryAttributes(req.params.idOrSlug);
+    successResponse(res, result);
+  } catch (err) {
+    next(err);
+  }
+};
