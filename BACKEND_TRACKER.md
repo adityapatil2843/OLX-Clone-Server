@@ -67,7 +67,7 @@ Confirm the actual scope during Phase 0. Do not assume every candidate feature c
 | 2 | Authentication | ✅ | Auth and security tests pass |
 | 3 | Users and profiles | 🟡 | Ownership and privacy tests pass |
 | 4 | Categories and listings | 🟡 | Categories complete; listings pending |
-| 5 | Media and Reels | 🟡 | CRUD complete; S3 upload pending |
+| 5 | Media and Reels | ✅ | Cloudinary pre-signed & direct multipart upload pipeline complete |
 | 6 | Search and location | ⬜ | Filter, pagination and location tests pass |
 | 7 | Chat and notifications | ⬜ | Persistence and participant authorization verified |
 | 8 | Reports and moderation | ⬜ | Permission boundaries and audit logs verified |

@@ -76,3 +76,18 @@ export const attachMedia = async (req, res, next) => {
     next(error);
   }
 };
+
+export const uploadMediaDirect = async (req, res, next) => {
+  try {
+    const result = await service.uploadMediaDirect(
+      req.params.listingId,
+      req.user.id,
+      req.file,
+      req.body
+    );
+    successResponse(res, result, 201);
+  } catch (error) {
+    next(error);
+  }
+};
+

@@ -159,14 +159,6 @@ export const getListingMediaDeliveryUrl = (storageKey, type, expiresInSec = 3600
   });
 };
 
-// ── Delete from storage ───────────────────────────────────────
-
-/**
- * Remove a resource from Cloudinary.
- * Called when a Reel is hard-deleted (admin use only, not exposed in API).
- *
- * @param {string} storageKey
- */
 export const deleteFromStorage = async (storageKey) => {
   if (!isConfigured) {
     console.warn('[Storage] Cloudinary not configured — skipping delete:', storageKey);
@@ -175,4 +167,50 @@ export const deleteFromStorage = async (storageKey) => {
   return cloudinary.uploader.destroy(storageKey, { resource_type: 'video' });
 };
 
+/**
+ * Upload a memory buffer directly to Cloudinary.
+ * Used for multipart/form-data direct uploads from client devices.
+ *
+ * @param {Buffer} buffer
+ * @param {object} options
+ * @param {'image'|'video'|'auto'} [options.resourceType='auto']
+ * @param {string} [options.folder='marketplace']
+ * @param {string} [options.publicId]
+ * @returns {Promise<object>} Cloudinary upload result
+ */
+export const uploadBufferToCloudinary = (buffer, options = {}) => {
+  const { resourceType = 'auto', folder = 'marketplace', publicId } = options;
+
+  if (!isConfigured) {
+    const mockId = publicId || `${folder}/${Date.now()}`;
+    return Promise.resolve({
+      public_id: mockId,
+      secure_url: `https://placeholder.cloudinary.com/${mockId}`,
+      resource_type: resourceType === 'auto' ? 'image' : resourceType,
+      format: 'webp',
+      bytes: buffer?.length || 0,
+      width: 1080,
+      height: 1920,
+      stub: true,
+    });
+  }
+
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder,
+        public_id: publicId,
+        resource_type: resourceType,
+      },
+      (error, result) => {
+        if (error) return reject(error);
+        resolve(result);
+      }
+    );
+
+    uploadStream.end(buffer);
+  });
+};
+
 export { isConfigured };
+

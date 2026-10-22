@@ -4,7 +4,7 @@
  */
 
 import * as repo from './reels.repository.js';
-import { generateUploadSignature, getSignedDeliveryUrl } from './reels.storage.js';
+import { generateUploadSignature, getSignedDeliveryUrl, uploadBufferToCloudinary } from './reels.storage.js';
 import { REEL_STATUS, REEL_UPDATABLE_FIELDS } from './reels.constants.js';
 import { ApiError, NotFoundError, ForbiddenError, ConflictError } from '../../utils/errors.js';
 
@@ -146,6 +146,53 @@ export const confirmUpload = async (reelId, mediaData, requestorCreatorId) => {
   const updated = await repo.updateReelMedia(reelId, mediaData);
   return formatReel(updated);
 };
+
+export const uploadReelDirect = async (reelId, requestorCreatorId, videoFile, thumbnailFile = null) => {
+  if (!videoFile) {
+    throw new ReelError('Video file is required for direct upload', 400);
+  }
+
+  const existing = await repo.findReelById(reelId);
+  if (!existing) {
+    throw new NotFoundError(`Reel ${reelId} not found`);
+  }
+  if (existing.creatorId !== requestorCreatorId) {
+    throw new ForbiddenError('You do not own this Reel');
+  }
+  if (existing.status !== REEL_STATUS.DRAFT && existing.status !== REEL_STATUS.FAILED) {
+    throw new ConflictError(`Cannot upload media for a Reel in status ${existing.status}`);
+  }
+
+  const folder = `reels/${requestorCreatorId}`;
+  const videoUpload = await uploadBufferToCloudinary(videoFile.buffer, {
+    resourceType: 'video',
+    folder,
+    publicId: `${folder}/${reelId}`,
+  });
+
+  let thumbnailStorageKey = null;
+  if (thumbnailFile) {
+    const thumbUpload = await uploadBufferToCloudinary(thumbnailFile.buffer, {
+      resourceType: 'image',
+      folder: `${folder}/thumbs`,
+      publicId: `${folder}/thumbs/${reelId}`,
+    });
+    thumbnailStorageKey = thumbUpload.public_id;
+  }
+
+  const mediaData = {
+    videoStorageKey: videoUpload.public_id,
+    thumbnailStorageKey: thumbnailStorageKey || videoUpload.public_id,
+    videoProvider: 'cloudinary',
+    durationMs: videoUpload.duration ? Math.round(videoUpload.duration * 1000) : 15000,
+    width: videoUpload.width || 1080,
+    height: videoUpload.height || 1920,
+  };
+
+  const updated = await repo.updateReelMedia(reelId, mediaData);
+  return formatReel(updated);
+};
+
 
 // ── Engagement: Likes ──────────────────────────────────────────
 

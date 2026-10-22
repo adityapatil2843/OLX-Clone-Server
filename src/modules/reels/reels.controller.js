@@ -131,6 +131,27 @@ export const confirmUpload = async (req, res, next) => {
   }
 };
 
+// ── POST /api/v1/reels/:reelId/upload ─────────────────────────
+
+export const uploadReelDirect = async (req, res, next) => {
+  try {
+    const { reelId } = parseOrThrow(reelIdParamSchema, req.params);
+    const videoFile = req.files?.video?.[0] || req.file;
+    const thumbnailFile = req.files?.thumbnail?.[0] || null;
+
+    const reel = await service.uploadReelDirect(
+      reelId,
+      req.creatorId,
+      videoFile,
+      thumbnailFile
+    );
+    ok(res, reel, 201);
+  } catch (err) {
+    next(err);
+  }
+};
+
+
 // ── Engagement Handlers ────────────────────────────────────────
 
 export const likeReel = async (req, res, next) => {

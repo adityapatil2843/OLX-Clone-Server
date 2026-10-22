@@ -17,15 +17,31 @@ app.use(helmet());
 
 // Safe CORS configuration
 const isWildcardOrigin = env.CORS_ORIGIN === '*';
-const corsOrigins = isWildcardOrigin
-  ? '*'
+const configuredOrigins = isWildcardOrigin
+  ? []
   : env.CORS_ORIGIN.split(',').map((origin) => origin.trim());
 
 app.use(
   cors({
-    origin: corsOrigins,
-    // Browsers forbid credentials with wildcard '*' origin
-    credentials: !isWildcardOrigin,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (e.g. mobile apps, curl, Postman)
+      if (!origin) return callback(null, true);
+
+      if (isWildcardOrigin) return callback(null, true);
+      if (configuredOrigins.includes(origin)) return callback(null, true);
+
+      // In development mode, automatically allow localhost and private network IP origins (e.g. Expo Web on 8081)
+      if (env.NODE_ENV === 'development') {
+        const isLocalOrLan =
+          /^https?:\/\/(localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?$/.test(
+            origin
+          );
+        if (isLocalOrLan) return callback(null, true);
+      }
+
+      return callback(new Error(`Origin ${origin} not allowed by CORS`));
+    },
+    credentials: true,
   })
 );
 

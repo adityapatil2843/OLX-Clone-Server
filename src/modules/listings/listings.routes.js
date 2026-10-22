@@ -13,6 +13,8 @@ import {
   uploadSignatureSchema,
 } from './listings.validation.js';
 
+import { uploadMedia } from '../../middlewares/upload.js';
+
 const router = Router();
 
 router.get('/', optionalAuthenticate, validate({ query: publicListingsQuerySchema }), controller.listPublicListings);
@@ -23,6 +25,7 @@ router.patch('/:listingId', authenticate, validate({ params: listingIdParamSchem
 router.patch('/:listingId/status', authenticate, validate({ params: listingIdParamSchema, body: updateListingStatusSchema }), controller.updateListingStatus);
 router.delete('/:listingId', authenticate, validate({ params: listingIdParamSchema }), controller.deleteListing);
 router.post('/:listingId/media/upload-signature', authenticate, validate({ params: listingIdParamSchema, body: uploadSignatureSchema }), controller.requestMediaUpload);
+router.post('/:listingId/media/upload', authenticate, uploadMedia.single('file'), controller.uploadMediaDirect);
 router.post('/:listingId/media', authenticate, validate({ params: listingIdParamSchema, body: attachMediaSchema }), controller.attachMedia);
 
 export default router;

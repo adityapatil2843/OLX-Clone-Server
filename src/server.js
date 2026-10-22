@@ -16,9 +16,9 @@ const startServer = async () => {
     // Verify database connectivity before opening port
     await connectPrisma();
 
-    server = app.listen(PORT, () => {
+    server = app.listen(PORT, '0.0.0.0', () => {
       logger.info(
-        `🚀 Server listening on http://localhost:${PORT} in ${env.NODE_ENV} mode`
+        `🚀 Server listening on http://0.0.0.0:${PORT} (http://localhost:${PORT}) in ${env.NODE_ENV} mode`
       );
       logger.info(
         `🏥 Health endpoints: http://localhost:${PORT}/health/live & http://localhost:${PORT}/health/ready`

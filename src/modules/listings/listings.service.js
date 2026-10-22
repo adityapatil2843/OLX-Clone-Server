@@ -1,5 +1,5 @@
 import { BadRequestError, ForbiddenError, NotFoundError } from '../../utils/errors.js';
-import { generateListingUploadSignature, getListingMediaDeliveryUrl } from '../reels/reels.storage.js';
+import { generateListingUploadSignature, getListingMediaDeliveryUrl, uploadBufferToCloudinary } from '../reels/reels.storage.js';
 import * as repo from './listings.repository.js';
 import { validateCategoryAttributes } from '../categories/categories.service.js';
 import { stopListingAdvertisements } from '../advertisements/advertisements.service.js';
@@ -131,3 +131,39 @@ export const attachMedia = async (listingId, ownerId, data) => {
 
   return repo.createMedia(listingId, data);
 };
+
+export const uploadMediaDirect = async (listingId, ownerId, file, options = {}) => {
+  if (!file) {
+    throw new BadRequestError('No file provided for upload');
+  }
+
+  const listing = await repo.findOwnedListing(listingId, ownerId);
+  if (!listing) throw new NotFoundError('Listing not found');
+  if (listing.status === 'ARCHIVED') {
+    throw new ForbiddenError('Cannot add media to an archived listing');
+  }
+
+  const count = await repo.countMedia(listingId);
+  if (count >= 12) {
+    throw new BadRequestError('Maximum 12 media assets allowed per listing');
+  }
+
+  const isVideo = file.mimetype.startsWith('video/');
+  const mediaType = isVideo ? 'VIDEO' : 'IMAGE';
+  const resourceType = isVideo ? 'video' : 'image';
+  const folder = `listings/${ownerId}/${listingId}`;
+
+  const uploaded = await uploadBufferToCloudinary(file.buffer, {
+    resourceType,
+    folder,
+  });
+
+  return repo.createMedia(listingId, {
+    type: mediaType,
+    storageKey: uploaded.public_id,
+    provider: 'cloudinary',
+    thumbnailKey: uploaded.secure_url || null,
+    displayOrder: options.displayOrder ? Number(options.displayOrder) : count,
+  });
+};
+
