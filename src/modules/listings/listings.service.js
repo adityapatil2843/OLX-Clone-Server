@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../../utils/errors.js';
 import { generateListingUploadSignature, getListingMediaDeliveryUrl, uploadBufferToCloudinary } from '../reels/reels.storage.js';
 import * as repo from './listings.repository.js';
@@ -29,7 +30,7 @@ const withPagination = (listings, total, page, limit) => ({
   },
 });
 
-export const createListing = async (payload, ownerId) => {
+export const createListing = async (payload, ownerId, files = []) => {
   const category = await repo.findActiveCategory(payload.categoryId);
   if (!category) throw new BadRequestError('Category does not exist or is inactive');
 
@@ -38,7 +39,64 @@ export const createListing = async (payload, ownerId) => {
     validateCategoryAttributes(category.attributes, payload.attributes);
   }
 
-  return withWishlistState(await repo.createListing({ ...payload, ownerId }));
+  // Generate unique listingId in advance so Cloudinary folder is tied directly to this listing
+  const listingId = crypto.randomUUID();
+
+  // Extract separate media URL fields if provided in payload
+  const { imageUrl, imageUrls, ...listingData } = payload;
+  const mediaData = [];
+
+  // 1. Process files uploaded directly with the listing (e.g. multipart/form-data)
+  if (files && files.length > 0) {
+    if (files.length > 12) {
+      throw new BadRequestError('Maximum 12 media assets allowed per listing');
+    }
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const isVideo = (file.mimetype || '').startsWith('video/');
+      const mediaType = isVideo ? 'VIDEO' : 'IMAGE';
+      const resourceType = isVideo ? 'video' : 'image';
+      const folder = `listings/${ownerId}/${listingId}`;
+
+      const uploaded = await uploadBufferToCloudinary(file.buffer, {
+        resourceType,
+        folder,
+      });
+
+      mediaData.push({
+        type: mediaType,
+        storageKey: uploaded.public_id,
+        provider: 'cloudinary',
+        thumbnailKey: uploaded.secure_url || null,
+        displayOrder: mediaData.length,
+      });
+    }
+  }
+
+  // 2. Process image URLs passed in body (if any)
+  const incomingUrls = [
+    ...(imageUrl ? [imageUrl] : []),
+    ...(Array.isArray(imageUrls) ? imageUrls : []),
+  ];
+
+  for (const url of incomingUrls) {
+    if (mediaData.length >= 12) break;
+    mediaData.push({
+      type: 'IMAGE',
+      storageKey: url,
+      provider: 'cloudinary',
+      thumbnailKey: url,
+      displayOrder: mediaData.length,
+    });
+  }
+
+  const createdListing = await repo.createListing(
+    { ...listingData, id: listingId, ownerId },
+    mediaData
+  );
+
+  return withWishlistState(createdListing);
 };
 
 export const getMyListings = async (ownerId, query) => {
@@ -158,12 +216,17 @@ export const uploadMediaDirect = async (listingId, ownerId, file, options = {}) 
     folder,
   });
 
-  return repo.createMedia(listingId, {
+  const created = await repo.createMedia(listingId, {
     type: mediaType,
     storageKey: uploaded.public_id,
     provider: 'cloudinary',
     thumbnailKey: uploaded.secure_url || null,
     displayOrder: options.displayOrder ? Number(options.displayOrder) : count,
   });
+
+  return {
+    ...created,
+    url: getListingMediaDeliveryUrl(created.storageKey, created.type),
+  };
 };
 

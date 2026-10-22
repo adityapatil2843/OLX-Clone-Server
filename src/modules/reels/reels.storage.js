@@ -145,6 +145,10 @@ export const getSignedDeliveryUrl = (storageKey, expiresInSec = 3600) => {
 
 /** Builds a delivery URL for marketplace image or video media. */
 export const getListingMediaDeliveryUrl = (storageKey, type, expiresInSec = 3600) => {
+  if (!storageKey) return null;
+  if (storageKey.startsWith('http://') || storageKey.startsWith('https://')) {
+    return storageKey;
+  }
   const resourceType = type === 'IMAGE' ? 'image' : 'video';
   if (!isConfigured) {
     return `https://placeholder.cloudinary.com/${storageKey}`;

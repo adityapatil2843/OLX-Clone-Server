@@ -11,9 +11,18 @@ const publicInclude = (userId) => ({
 export const findActiveCategory = (id) =>
   prisma.category.findFirst({ where: { id, isActive: true } });
 
-export const createListing = (data) =>
+export const createListing = (data, mediaData = []) =>
   prisma.listing.create({
-    data,
+    data: {
+      ...data,
+      ...(mediaData && mediaData.length > 0
+        ? {
+            media: {
+              create: mediaData,
+            },
+          }
+        : {}),
+    },
     include: publicInclude(),
   });
 

@@ -18,10 +18,27 @@ export const createListingSchema = z.object({
   locationLocality: optionalText(150),
   latitude: z.coerce.number().min(-90).max(90).optional().nullable(),
   longitude: z.coerce.number().min(-180).max(180).optional().nullable(),
-  attributes: z.record(z.any()).optional().nullable(),
+  attributes: z.preprocess((val) => {
+    if (typeof val === 'string') {
+      try { return JSON.parse(val); } catch { return val; }
+    }
+    return val;
+  }, z.record(z.any()).optional().nullable()),
   contactPhone: phone,
   status: z.enum([LISTING_STATUS.DRAFT, LISTING_STATUS.ACTIVE]).default(LISTING_STATUS.ACTIVE),
-}).strict();
+  imageUrl: z.string().optional().nullable(),
+  imageUrls: z.preprocess((val) => {
+    if (typeof val === 'string') {
+      try {
+        const parsed = JSON.parse(val);
+        return Array.isArray(parsed) ? parsed : [parsed];
+      } catch {
+        return [val];
+      }
+    }
+    return val;
+  }, z.array(z.string()).optional().nullable()),
+}).passthrough();
 
 export const updateListingSchema = z.object({
   title: z.string().trim().min(2).max(160).optional(),

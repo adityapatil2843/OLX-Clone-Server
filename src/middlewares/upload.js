@@ -6,6 +6,7 @@ const storage = multer.memoryStorage();
 
 const allowedMimeTypes = new Set([
   'image/jpeg',
+  'image/jpg',
   'image/png',
   'image/webp',
   'image/gif',
@@ -14,12 +15,33 @@ const allowedMimeTypes = new Set([
   'video/webm',
 ]);
 
+const extensionMimeMap = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.mp4': 'video/mp4',
+  '.mov': 'video/quicktime',
+  '.webm': 'video/webm',
+};
+
 const fileFilter = (_req, file, cb) => {
   if (allowedMimeTypes.has(file.mimetype)) {
     cb(null, true);
-  } else {
-    cb(new BadRequestError(`Unsupported file format '${file.mimetype}'. Allowed: images (jpeg, png, webp, gif) and videos (mp4, mov, webm).`), false);
+    return;
   }
+
+  // Fallback for clients sending generic application/octet-stream or non-standard mime types
+  const lowerOriginalName = (file.originalname || '').toLowerCase();
+  const matchedExt = Object.keys(extensionMimeMap).find((ext) => lowerOriginalName.endsWith(ext));
+  if (matchedExt) {
+    file.mimetype = extensionMimeMap[matchedExt];
+    cb(null, true);
+    return;
+  }
+
+  cb(new BadRequestError(`Unsupported file format '${file.mimetype}'. Allowed: images (jpeg, jpg, png, webp, gif) and videos (mp4, mov, webm).`), false);
 };
 
 export const uploadMedia = multer({

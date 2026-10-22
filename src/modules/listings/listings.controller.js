@@ -3,7 +3,23 @@ import * as service from './listings.service.js';
 
 export const createListing = async (req, res, next) => {
   try {
-    successResponse(res, await service.createListing(req.body, req.user.id), 201);
+    let files = [];
+    if (req.file) {
+      files = [req.file];
+    } else if (req.files) {
+      if (Array.isArray(req.files)) {
+        files = req.files;
+      } else {
+        files = [
+          ...(req.files.file || []),
+          ...(req.files.image || []),
+          ...(req.files.images || []),
+        ];
+      }
+    }
+
+    const created = await service.createListing(req.body, req.user.id, files);
+    successResponse(res, created, 201);
   } catch (error) {
     next(error);
   }
@@ -79,10 +95,11 @@ export const attachMedia = async (req, res, next) => {
 
 export const uploadMediaDirect = async (req, res, next) => {
   try {
+    const file = req.file || req.files?.file?.[0] || req.files?.image?.[0];
     const result = await service.uploadMediaDirect(
       req.params.listingId,
       req.user.id,
-      req.file,
+      file,
       req.body
     );
     successResponse(res, result, 201);
