@@ -86,6 +86,8 @@ app.get('/health', (_req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+app.set('trust proxy', 1);
+
 // ── Root Endpoint ─────────────────────────────────────────────
 
 app.get('/', (_req, res) => {
