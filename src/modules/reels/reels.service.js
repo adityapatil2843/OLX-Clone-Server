@@ -7,6 +7,7 @@ import * as repo from './reels.repository.js';
 import { generateUploadSignature, getSignedDeliveryUrl, uploadBufferToCloudinary } from './reels.storage.js';
 import { REEL_STATUS, REEL_UPDATABLE_FIELDS } from './reels.constants.js';
 import { ApiError, NotFoundError, ForbiddenError, ConflictError } from '../../utils/errors.js';
+import { prisma } from '../../db/prisma.js';
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -25,7 +26,10 @@ const formatReel = (reel) => {
   const { _count, likes, savedBy, ...rest } = reel;
   return {
     ...rest,
+    title: reel.caption || reel.listing?.title || 'Product Reel',
+    description: reel.caption,
     videoUrl: reel.videoStorageKey ? getSignedDeliveryUrl(reel.videoStorageKey) : null,
+    thumbnailUrl: reel.thumbnailStorageKey ? getSignedDeliveryUrl(reel.thumbnailStorageKey) : null,
     likesCount: _count?.likes ?? 0,
     commentsCount: _count?.comments ?? 0,
     ...(likes !== undefined ? { isLiked: likes.length > 0 } : {}),
@@ -36,6 +40,18 @@ const formatReel = (reel) => {
 // ── Create ────────────────────────────────────────────────────
 
 export const createReel = async (validatedBody, creatorId) => {
+  if (validatedBody.listingId) {
+    const listing = await prisma.listing.findFirst({
+      where: { id: validatedBody.listingId, deletedAt: null },
+    });
+    if (!listing) {
+      throw new NotFoundError('Linked listing not found');
+    }
+    if (listing.ownerId !== creatorId) {
+      throw new ForbiddenError('You can only attach reels to your own product');
+    }
+  }
+
   const reel = await repo.createReel(validatedBody, creatorId);
   return formatReel(reel);
 };
@@ -159,15 +175,15 @@ export const uploadReelDirect = async (reelId, requestorCreatorId, videoFile, th
   if (existing.creatorId !== requestorCreatorId) {
     throw new ForbiddenError('You do not own this Reel');
   }
-  if (existing.status !== REEL_STATUS.DRAFT && existing.status !== REEL_STATUS.FAILED) {
-    throw new ConflictError(`Cannot upload media for a Reel in status ${existing.status}`);
+  if (existing.status === REEL_STATUS.ARCHIVED) {
+    throw new ConflictError('Cannot upload media for an archived Reel');
   }
 
   const folder = `reels/${requestorCreatorId}`;
   const videoUpload = await uploadBufferToCloudinary(videoFile.buffer, {
     resourceType: 'video',
     folder,
-    publicId: `${folder}/${reelId}`,
+    publicId: `${reelId}`,
   });
 
   let thumbnailStorageKey = null;
@@ -175,7 +191,7 @@ export const uploadReelDirect = async (reelId, requestorCreatorId, videoFile, th
     const thumbUpload = await uploadBufferToCloudinary(thumbnailFile.buffer, {
       resourceType: 'image',
       folder: `${folder}/thumbs`,
-      publicId: `${folder}/thumbs/${reelId}`,
+      publicId: `${reelId}`,
     });
     thumbnailStorageKey = thumbUpload.public_id;
   }
@@ -187,6 +203,7 @@ export const uploadReelDirect = async (reelId, requestorCreatorId, videoFile, th
     durationMs: videoUpload.duration ? Math.round(videoUpload.duration * 1000) : 15000,
     width: videoUpload.width || 1080,
     height: videoUpload.height || 1920,
+    status: REEL_STATUS.PUBLISHED,
   };
 
   const updated = await repo.updateReelMedia(reelId, mediaData);

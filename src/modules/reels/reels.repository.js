@@ -77,16 +77,20 @@ export const listReels = async ({
   page = 1,
   limit = 20,
   cursor,
-  status = REEL_STATUS.PUBLISHED,
+  status,
   creatorId,
   categoryId,
+  listingId,
   userId = null,
 }) => {
   const where = {
     deletedAt: null,
-    status,
+    ...(status && status !== 'ALL'
+      ? { status }
+      : { status: { in: [REEL_STATUS.PUBLISHED, REEL_STATUS.PROCESSING] } }),
     ...(creatorId ? { creatorId } : {}),
     ...(categoryId ? { categoryId } : {}),
+    ...(listingId ? { listingId } : {}),
   };
 
   if (cursor) {
@@ -168,8 +172,8 @@ export const updateReelMedia = async (reelId, mediaData) => {
   return prisma.reel.update({
     where: { id: reelId },
     data: {
+      status: mediaData.status || REEL_STATUS.PUBLISHED,
       ...mediaData,
-      status: REEL_STATUS.PROCESSING,
     },
     include: publicReelInclude(),
   });

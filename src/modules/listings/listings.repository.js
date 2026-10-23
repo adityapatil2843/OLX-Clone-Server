@@ -5,6 +5,10 @@ const publicInclude = (userId) => ({
   category: { select: { id: true, name: true, slug: true, attributes: true } },
   owner: { select: { id: true, name: true, avatarUrl: true, isVerifiedSeller: true } },
   media: { orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }] },
+  reels: {
+    where: { deletedAt: null },
+    select: { id: true, caption: true, videoStorageKey: true, thumbnailStorageKey: true, status: true },
+  },
   ...(userId ? { wishlistedBy: { where: { userId }, select: { id: true } } } : {}),
 });
 
@@ -198,3 +202,10 @@ export const countMedia = (listingId) =>
 
 export const createMedia = (listingId, data) =>
   prisma.listingMedia.create({ data: { ...data, listingId } });
+
+export const findMediaById = (listingId, mediaId) =>
+  prisma.listingMedia.findFirst({ where: { id: mediaId, listingId } });
+
+export const deleteMedia = (mediaId) =>
+  prisma.listingMedia.delete({ where: { id: mediaId } });
+

@@ -67,11 +67,11 @@ export const listReelsQuerySchema = z.object({
     .pipe(z.number().int().min(1).max(PAGINATION.MAX_LIMIT)),
   cursor: z.string().optional(),
   status: z
-    .enum(Object.values(REEL_STATUS))
-    .optional()
-    .default(REEL_STATUS.PUBLISHED),
+    .string()
+    .optional(),
   creatorId: z.string().min(1).max(100).optional(),
   categoryId: z.string().uuid().optional(),
+  listingId: z.string().uuid().optional(),
 });
 
 // ── Signed upload request ─────────────────────────────────────

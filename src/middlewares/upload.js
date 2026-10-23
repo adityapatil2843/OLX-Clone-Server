@@ -13,6 +13,13 @@ const allowedMimeTypes = new Set([
   'video/mp4',
   'video/quicktime',
   'video/webm',
+  'video/x-msvideo',
+  'video/x-matroska',
+  'video/avi',
+  'video/3gpp',
+  'video/ogg',
+  'video/mpeg',
+  'video/m4v',
 ]);
 
 const extensionMimeMap = {
@@ -24,10 +31,16 @@ const extensionMimeMap = {
   '.mp4': 'video/mp4',
   '.mov': 'video/quicktime',
   '.webm': 'video/webm',
+  '.avi': 'video/x-msvideo',
+  '.mkv': 'video/x-matroska',
+  '.3gp': 'video/3gpp',
+  '.m4v': 'video/m4v',
+  '.wmv': 'video/x-ms-wmv',
+  '.flv': 'video/x-flv',
 };
 
 const fileFilter = (_req, file, cb) => {
-  if (allowedMimeTypes.has(file.mimetype)) {
+  if (allowedMimeTypes.has(file.mimetype) || (file.mimetype && file.mimetype.startsWith('video/'))) {
     cb(null, true);
     return;
   }
@@ -41,7 +54,7 @@ const fileFilter = (_req, file, cb) => {
     return;
   }
 
-  cb(new BadRequestError(`Unsupported file format '${file.mimetype}'. Allowed: images (jpeg, jpg, png, webp, gif) and videos (mp4, mov, webm).`), false);
+  cb(new BadRequestError(`Unsupported file format '${file.mimetype}'. Allowed: images (jpeg, jpg, png, webp, gif) and videos (mp4, mov, webm, avi, mkv, 3gp, m4v, etc.).`), false);
 };
 
 export const uploadMedia = multer({

@@ -95,11 +95,19 @@ export const attachMedia = async (req, res, next) => {
 
 export const uploadMediaDirect = async (req, res, next) => {
   try {
-    const file = req.file || req.files?.file?.[0] || req.files?.image?.[0];
+    const files = req.files
+      ? [
+          ...(req.files.file || []),
+          ...(req.files.files || []),
+          ...(req.files.image || []),
+          ...(req.files.images || []),
+        ]
+      : (req.file ? [req.file] : []);
+
     const result = await service.uploadMediaDirect(
       req.params.listingId,
       req.user.id,
-      file,
+      files,
       req.body
     );
     successResponse(res, result, 201);
@@ -107,4 +115,18 @@ export const uploadMediaDirect = async (req, res, next) => {
     next(error);
   }
 };
+
+export const deleteMedia = async (req, res, next) => {
+  try {
+    const result = await service.deleteMedia(
+      req.params.listingId,
+      req.params.mediaId,
+      req.user.id
+    );
+    successResponse(res, result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 

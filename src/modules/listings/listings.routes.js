@@ -81,11 +81,14 @@ router.post(
   '/:listingId/media/upload',
   authenticate,
   uploadMedia.fields([
-    { name: 'file', maxCount: 1 },
-    { name: 'image', maxCount: 1 },
+    { name: 'file', maxCount: 12 },
+    { name: 'files', maxCount: 12 },
+    { name: 'image', maxCount: 12 },
+    { name: 'images', maxCount: 12 },
   ]),
   controller.uploadMediaDirect
 );
+router.delete('/:listingId/media/:mediaId', authenticate, controller.deleteMedia);
 router.post('/:listingId/media', authenticate, validate({ params: listingIdParamSchema, body: attachMediaSchema }), controller.attachMedia);
 
 export default router;

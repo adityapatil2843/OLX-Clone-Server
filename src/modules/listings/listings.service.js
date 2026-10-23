@@ -8,12 +8,17 @@ import { LISTING_STATUS } from './listings.constants.js';
 
 const withWishlistState = (listing) => {
   if (!listing) return listing;
-  const { wishlistedBy, media = [], ...data } = listing;
+  const { wishlistedBy, media = [], reels = [], ...data } = listing;
   return {
     ...data,
     media: media.map((item) => ({
       ...item,
       url: getListingMediaDeliveryUrl(item.storageKey, item.type),
+    })),
+    reels: reels.map((r) => ({
+      ...r,
+      videoUrl: r.videoStorageKey ? getListingMediaDeliveryUrl(r.videoStorageKey, 'VIDEO') : null,
+      thumbnailUrl: r.thumbnailStorageKey ? getListingMediaDeliveryUrl(r.thumbnailStorageKey, 'IMAGE') : null,
     })),
     ...(wishlistedBy ? { isWishlisted: wishlistedBy.length > 0 } : {}),
   };
@@ -190,43 +195,62 @@ export const attachMedia = async (listingId, ownerId, data) => {
   return repo.createMedia(listingId, data);
 };
 
-export const uploadMediaDirect = async (listingId, ownerId, file, options = {}) => {
-  if (!file) {
+export const uploadMediaDirect = async (listingId, ownerId, files, options = {}) => {
+  const fileList = Array.isArray(files) ? files : (files ? [files] : []);
+  if (fileList.length === 0) {
     throw new BadRequestError('No file provided for upload');
   }
 
   const listing = await repo.findOwnedListing(listingId, ownerId);
-  if (!listing) throw new NotFoundError('Listing not found');
+  if (!listing) throw new NotFoundError('Listing not found or access denied');
   if (listing.status === 'ARCHIVED') {
     throw new ForbiddenError('Cannot add media to an archived listing');
   }
 
-  const count = await repo.countMedia(listingId);
-  if (count >= 12) {
-    throw new BadRequestError('Maximum 12 media assets allowed per listing');
+  const currentCount = await repo.countMedia(listingId);
+  if (currentCount + fileList.length > 12) {
+    throw new BadRequestError(`Cannot exceed 12 media assets per listing. Current: ${currentCount}, attempting to add: ${fileList.length}`);
   }
 
-  const isVideo = file.mimetype.startsWith('video/');
-  const mediaType = isVideo ? 'VIDEO' : 'IMAGE';
-  const resourceType = isVideo ? 'video' : 'image';
-  const folder = `listings/${ownerId}/${listingId}`;
+  const createdItems = [];
+  for (let i = 0; i < fileList.length; i++) {
+    const file = fileList[i];
+    const isVideo = file.mimetype && file.mimetype.startsWith('video/');
+    const mediaType = isVideo ? 'VIDEO' : 'IMAGE';
+    const resourceType = isVideo ? 'video' : 'image';
+    const folder = `listings/${ownerId}/${listingId}`;
 
-  const uploaded = await uploadBufferToCloudinary(file.buffer, {
-    resourceType,
-    folder,
-  });
+    const uploaded = await uploadBufferToCloudinary(file.buffer, {
+      resourceType,
+      folder,
+    });
 
-  const created = await repo.createMedia(listingId, {
-    type: mediaType,
-    storageKey: uploaded.public_id,
-    provider: 'cloudinary',
-    thumbnailKey: uploaded.secure_url || null,
-    displayOrder: options.displayOrder ? Number(options.displayOrder) : count,
-  });
+    const created = await repo.createMedia(listingId, {
+      type: mediaType,
+      storageKey: uploaded.public_id,
+      provider: 'cloudinary',
+      thumbnailKey: uploaded.secure_url || null,
+      displayOrder: options.displayOrder ? Number(options.displayOrder) + i : currentCount + i,
+    });
 
-  return {
-    ...created,
-    url: getListingMediaDeliveryUrl(created.storageKey, created.type),
-  };
+    createdItems.push({
+      ...created,
+      url: getListingMediaDeliveryUrl(created.storageKey, created.type),
+    });
+  }
+
+  return createdItems.length === 1 ? createdItems[0] : createdItems;
 };
+
+export const deleteMedia = async (listingId, mediaId, ownerId) => {
+  const listing = await repo.findOwnedListing(listingId, ownerId);
+  if (!listing) throw new NotFoundError('Listing not found or access denied');
+
+  const media = await repo.findMediaById(listingId, mediaId);
+  if (!media) throw new NotFoundError('Media asset not found');
+
+  await repo.deleteMedia(mediaId);
+  return { message: 'Media removed successfully', mediaId };
+};
+
 
