@@ -13,13 +13,26 @@ const withWishlistState = (listing) => {
     ...data,
     media: media.map((item) => ({
       ...item,
-      url: getListingMediaDeliveryUrl(item.storageKey, item.type),
+      url: (item.thumbnailKey && item.thumbnailKey.startsWith('http'))
+        ? item.thumbnailKey
+        : getListingMediaDeliveryUrl(item.storageKey, item.type),
     })),
-    reels: reels.map((r) => ({
-      ...r,
-      videoUrl: r.videoStorageKey ? getListingMediaDeliveryUrl(r.videoStorageKey, 'VIDEO') : null,
-      thumbnailUrl: r.thumbnailStorageKey ? getListingMediaDeliveryUrl(r.thumbnailStorageKey, 'IMAGE') : null,
-    })),
+    reels: reels.map((r) => {
+      const isPoster = r.thumbnailStorageKey && r.thumbnailStorageKey === r.videoStorageKey;
+      return {
+        ...r,
+        videoUrl: r.videoStorageKey
+          ? (r.videoStorageKey.startsWith('http') ? r.videoStorageKey : getListingMediaDeliveryUrl(r.videoStorageKey, 'VIDEO'))
+          : null,
+        thumbnailUrl: r.thumbnailStorageKey
+          ? (r.thumbnailStorageKey.startsWith('http')
+              ? r.thumbnailStorageKey
+              : (isPoster
+                  ? getListingMediaDeliveryUrl(r.thumbnailStorageKey + '.jpg', 'VIDEO')
+                  : getListingMediaDeliveryUrl(r.thumbnailStorageKey, 'IMAGE')))
+          : null,
+      };
+    }),
     ...(wishlistedBy ? { isWishlisted: wishlistedBy.length > 0 } : {}),
   };
 };
@@ -69,11 +82,12 @@ export const createListing = async (payload, ownerId, files = []) => {
         folder,
       });
 
+      const secureUrl = uploaded.secure_url || getListingMediaDeliveryUrl(uploaded.public_id, mediaType);
       mediaData.push({
         type: mediaType,
         storageKey: uploaded.public_id,
         provider: 'cloudinary',
-        thumbnailKey: uploaded.secure_url || null,
+        thumbnailKey: secureUrl,
         displayOrder: mediaData.length,
       });
     }
@@ -225,17 +239,19 @@ export const uploadMediaDirect = async (listingId, ownerId, files, options = {})
       folder,
     });
 
+    const secureUrl = uploaded.secure_url || getListingMediaDeliveryUrl(uploaded.public_id, mediaType);
+
     const created = await repo.createMedia(listingId, {
       type: mediaType,
       storageKey: uploaded.public_id,
       provider: 'cloudinary',
-      thumbnailKey: uploaded.secure_url || null,
+      thumbnailKey: secureUrl,
       displayOrder: options.displayOrder ? Number(options.displayOrder) + i : currentCount + i,
     });
 
     createdItems.push({
       ...created,
-      url: getListingMediaDeliveryUrl(created.storageKey, created.type),
+      url: secureUrl,
     });
   }
 

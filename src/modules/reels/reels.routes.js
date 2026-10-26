@@ -28,6 +28,8 @@ router.post(
   authenticate,
   uploadMedia.fields([
     { name: 'video', maxCount: 1 },
+    { name: 'file', maxCount: 1 },
+    { name: 'media', maxCount: 1 },
     { name: 'thumbnail', maxCount: 1 },
   ]),
   controller.uploadReelDirect

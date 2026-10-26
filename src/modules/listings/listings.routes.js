@@ -85,6 +85,9 @@ router.post(
     { name: 'files', maxCount: 12 },
     { name: 'image', maxCount: 12 },
     { name: 'images', maxCount: 12 },
+    { name: 'video', maxCount: 12 },
+    { name: 'videos', maxCount: 12 },
+    { name: 'media', maxCount: 12 },
   ]),
   controller.uploadMediaDirect
 );

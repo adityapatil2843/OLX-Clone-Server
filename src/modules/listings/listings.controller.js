@@ -101,6 +101,9 @@ export const uploadMediaDirect = async (req, res, next) => {
           ...(req.files.files || []),
           ...(req.files.image || []),
           ...(req.files.images || []),
+          ...(req.files.video || []),
+          ...(req.files.videos || []),
+          ...(req.files.media || []),
         ]
       : (req.file ? [req.file] : []);
 

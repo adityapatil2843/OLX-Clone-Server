@@ -119,7 +119,7 @@ export const listReels = async ({
   // Offset pagination fallback
   const skip = (page - 1) * limit;
 
-  const [reels, total] = await prisma.$transaction([
+  const [reels, total] = await Promise.all([
     prisma.reel.findMany({
       where,
       include: publicReelInclude(userId),

@@ -136,7 +136,7 @@ export const confirmUpload = async (req, res, next) => {
 export const uploadReelDirect = async (req, res, next) => {
   try {
     const { reelId } = parseOrThrow(reelIdParamSchema, req.params);
-    const videoFile = req.files?.video?.[0] || req.file;
+    const videoFile = req.files?.video?.[0] || req.files?.file?.[0] || req.files?.media?.[0] || req.file;
     const thumbnailFile = req.files?.thumbnail?.[0] || null;
 
     const reel = await service.uploadReelDirect(

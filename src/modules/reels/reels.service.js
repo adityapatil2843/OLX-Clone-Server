@@ -24,12 +24,21 @@ export class ReelError extends ApiError {
 const formatReel = (reel) => {
   if (!reel) return reel;
   const { _count, likes, savedBy, ...rest } = reel;
+  const isPoster = reel.thumbnailStorageKey && reel.thumbnailStorageKey === reel.videoStorageKey;
   return {
     ...rest,
     title: reel.caption || reel.listing?.title || 'Product Reel',
     description: reel.caption,
-    videoUrl: reel.videoStorageKey ? getSignedDeliveryUrl(reel.videoStorageKey) : null,
-    thumbnailUrl: reel.thumbnailStorageKey ? getSignedDeliveryUrl(reel.thumbnailStorageKey) : null,
+    videoUrl: reel.videoStorageKey
+      ? (reel.videoStorageKey.startsWith('http') ? reel.videoStorageKey : getSignedDeliveryUrl(reel.videoStorageKey, 'video'))
+      : null,
+    thumbnailUrl: reel.thumbnailStorageKey
+      ? (reel.thumbnailStorageKey.startsWith('http')
+          ? reel.thumbnailStorageKey
+          : (isPoster
+              ? getSignedDeliveryUrl(reel.thumbnailStorageKey + '.jpg', 'video')
+              : getSignedDeliveryUrl(reel.thumbnailStorageKey, 'image')))
+      : null,
     likesCount: _count?.likes ?? 0,
     commentsCount: _count?.comments ?? 0,
     ...(likes !== undefined ? { isLiked: likes.length > 0 } : {}),
@@ -184,6 +193,7 @@ export const uploadReelDirect = async (reelId, requestorCreatorId, videoFile, th
     resourceType: 'video',
     folder,
     publicId: `${reelId}`,
+    overwrite: true,
   });
 
   let thumbnailStorageKey = null;
@@ -192,13 +202,19 @@ export const uploadReelDirect = async (reelId, requestorCreatorId, videoFile, th
       resourceType: 'image',
       folder: `${folder}/thumbs`,
       publicId: `${reelId}`,
+      overwrite: true,
     });
-    thumbnailStorageKey = thumbUpload.public_id;
+    thumbnailStorageKey = thumbUpload.secure_url || thumbUpload.public_id;
   }
 
+  const videoUrl = videoUpload.secure_url || videoUpload.public_id;
+  const posterUrl = videoUpload.secure_url
+    ? videoUpload.secure_url.replace(/\.[^.]+$/, '.jpg')
+    : videoUpload.public_id;
+
   const mediaData = {
-    videoStorageKey: videoUpload.public_id,
-    thumbnailStorageKey: thumbnailStorageKey || videoUpload.public_id,
+    videoStorageKey: videoUrl,
+    thumbnailStorageKey: thumbnailStorageKey || posterUrl,
     videoProvider: 'cloudinary',
     durationMs: videoUpload.duration ? Math.round(videoUpload.duration * 1000) : 15000,
     width: videoUpload.width || 1080,

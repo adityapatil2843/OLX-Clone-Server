@@ -129,27 +129,33 @@ export const generateListingUploadSignature = ({ listingId, ownerId, type }) => 
  * @param {number} [expiresInSec=3600]
  * @returns {string} Signed URL
  */
-export const getSignedDeliveryUrl = (storageKey, expiresInSec = 3600) => {
-  if (!isConfigured) {
-    return `https://placeholder.cloudinary.com/${storageKey}`;
-  }
-
-  return cloudinary.url(storageKey, {
-    resource_type: 'video',
-    type: 'upload',
-    secure: true,
-    sign_url: true,
-    expires_at: Math.round(Date.now() / 1000) + expiresInSec,
-  });
-};
-
-/** Builds a delivery URL for marketplace image or video media. */
-export const getListingMediaDeliveryUrl = (storageKey, type, expiresInSec = 3600) => {
+export const getSignedDeliveryUrl = (storageKey, type = 'video') => {
   if (!storageKey) return null;
   if (storageKey.startsWith('http://') || storageKey.startsWith('https://')) {
     return storageKey;
   }
-  const resourceType = type === 'IMAGE' ? 'image' : 'video';
+  if (!isConfigured) {
+    return `https://placeholder.cloudinary.com/${storageKey}`;
+  }
+
+  const isVideo = type === 'VIDEO' || type === 'video';
+  const resourceType = isVideo ? 'video' : 'image';
+
+  return cloudinary.url(storageKey, {
+    resource_type: resourceType,
+    type: 'upload',
+    secure: true,
+  });
+};
+
+/** Builds a delivery URL for marketplace image or video media. */
+export const getListingMediaDeliveryUrl = (storageKey, type = 'IMAGE') => {
+  if (!storageKey) return null;
+  if (storageKey.startsWith('http://') || storageKey.startsWith('https://')) {
+    return storageKey;
+  }
+  const isVideo = type === 'VIDEO' || type === 'video';
+  const resourceType = isVideo ? 'video' : 'image';
   if (!isConfigured) {
     return `https://placeholder.cloudinary.com/${storageKey}`;
   }
@@ -158,8 +164,6 @@ export const getListingMediaDeliveryUrl = (storageKey, type, expiresInSec = 3600
     resource_type: resourceType,
     type: 'upload',
     secure: true,
-    sign_url: true,
-    expires_at: Math.round(Date.now() / 1000) + expiresInSec,
   });
 };
 
@@ -183,7 +187,7 @@ export const deleteFromStorage = async (storageKey) => {
  * @returns {Promise<object>} Cloudinary upload result
  */
 export const uploadBufferToCloudinary = (buffer, options = {}) => {
-  const { resourceType = 'auto', folder = 'marketplace', publicId } = options;
+  const { resourceType = 'auto', folder = 'marketplace', publicId, overwrite = true } = options;
 
   if (!isConfigured) {
     const mockId = publicId || `${folder}/${Date.now()}`;
@@ -205,6 +209,7 @@ export const uploadBufferToCloudinary = (buffer, options = {}) => {
         folder,
         public_id: publicId,
         resource_type: resourceType,
+        overwrite,
       },
       (error, result) => {
         if (error) return reject(error);
