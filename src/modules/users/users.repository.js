@@ -1,4 +1,5 @@
 import { prisma } from '../../db/prisma.js';
+import { getPagination } from '../../utils/pagination.js';
 
 const PUBLIC_USER_SELECT = {
   id: true,
@@ -44,7 +45,7 @@ export const findUserByEmail = async (email) => {
 };
 
 export const listUsers = async ({ search, page = 1, limit = 20 }) => {
-  const skip = (page - 1) * limit;
+  const { skip, take } = getPagination({ page, limit }, { defaultLimit: 20, maxLimit: 100 });
 
   const where = {
     deletedAt: null,
@@ -59,16 +60,15 @@ export const listUsers = async ({ search, page = 1, limit = 20 }) => {
       : {}),
   };
 
-  const [users, total] = await Promise.all([
-    prisma.user.findMany({
-      where,
-      select: PUBLIC_USER_SELECT,
-      orderBy: { createdAt: 'desc' },
-      skip,
-      take: limit,
-    }),
-    prisma.user.count({ where }),
-  ]);
+  const users = await prisma.user.findMany({
+    where,
+    select: PUBLIC_USER_SELECT,
+    orderBy: { createdAt: 'desc' },
+    skip,
+    take,
+  });
+
+  const total = await prisma.user.count({ where });
 
   return { users, total };
 };

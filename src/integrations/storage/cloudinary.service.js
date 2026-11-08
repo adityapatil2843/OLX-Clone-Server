@@ -1,16 +1,18 @@
 /**
- * Cloudinary storage abstraction for Reels.
+ * Cloudinary storage service.
  *
  * Usage in development without real keys:
  *   Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET
  *   in .env. If any are missing, the module falls back to a stub that
  *   lets you test all CRUD endpoints without actual uploads.
  *
- * This file is the only place that imports cloudinary.
- * Swap this file to change providers.
+ * This file is the central place that configures and interfaces with Cloudinary.
  */
 
 import { v2 as cloudinary } from 'cloudinary';
+import { optimizeCloudinaryUrl } from './cloudinary.utils.js';
+
+export { optimizeCloudinaryUrl };
 
 // ── Configuration ─────────────────────────────────────────────
 
@@ -47,21 +49,26 @@ export const generateUploadSignature = (opts) => {
     return {
       stub: true,
       message: 'Cloudinary not configured — stub upload params returned',
-      publicId: `reels/${opts.creatorId}/${opts.reelId}`,
+      publicId: opts.publicId || `reels/${opts.creatorId}/${opts.reelId}`,
       uploadUrl: `https://api.cloudinary.com/v1_1/UNCONFIGURED/video/upload`,
+      uploadToken: opts.uploadToken || 'stub-upload-token',
+      folder: opts.folder || `reels/${opts.creatorId}`,
+      timestamp: Math.round(Date.now() / 1000),
+      apiKey: 'stub-api-key',
+      signature: 'stub-signature',
     };
   }
 
-  const folder = `reels/${opts.creatorId}`;
-  const publicId = `${folder}/${opts.reelId}`;
+  const folder = opts.folder || `reels/${opts.creatorId}`;
+  const publicId = opts.publicId || `${folder}/${opts.reelId}`;
   const timestamp = Math.round(Date.now() / 1000);
+  const context = opts.context || (opts.uploadToken ? `reelId=${opts.reelId}|uploadToken=${opts.uploadToken}` : undefined);
 
   const paramsToSign = {
     folder,
     public_id: publicId,
     timestamp,
-    resource_type: 'video',
-    overwrite: false,
+    ...(context ? { context } : {}),
   };
 
   const signature = cloudinary.utils.api_sign_request(
@@ -76,6 +83,8 @@ export const generateUploadSignature = (opts) => {
     cloudName: process.env.CLOUDINARY_CLOUD_NAME,
     folder,
     publicId,
+    context,
+    uploadToken: opts.uploadToken,
     uploadUrl: `https://api.cloudinary.com/v1_1/${process.env.CLOUDINARY_CLOUD_NAME}/video/upload`,
   };
 };
@@ -132,7 +141,7 @@ export const generateListingUploadSignature = ({ listingId, ownerId, type }) => 
 export const getSignedDeliveryUrl = (storageKey, type = 'video') => {
   if (!storageKey) return null;
   if (storageKey.startsWith('http://') || storageKey.startsWith('https://')) {
-    return storageKey;
+    return optimizeCloudinaryUrl(storageKey);
   }
   if (!isConfigured) {
     return `https://placeholder.cloudinary.com/${storageKey}`;
@@ -145,6 +154,10 @@ export const getSignedDeliveryUrl = (storageKey, type = 'video') => {
     resource_type: resourceType,
     type: 'upload',
     secure: true,
+    ...(isVideo && !storageKey.includes('.') ? { format: 'mp4' } : {}),
+    ...(resourceType === 'image' || storageKey.endsWith('.jpg')
+      ? { fetch_format: 'auto', quality: 'auto' }
+      : {}),
   });
 };
 
@@ -152,7 +165,7 @@ export const getSignedDeliveryUrl = (storageKey, type = 'video') => {
 export const getListingMediaDeliveryUrl = (storageKey, type = 'IMAGE') => {
   if (!storageKey) return null;
   if (storageKey.startsWith('http://') || storageKey.startsWith('https://')) {
-    return storageKey;
+    return optimizeCloudinaryUrl(storageKey);
   }
   const isVideo = type === 'VIDEO' || type === 'video';
   const resourceType = isVideo ? 'video' : 'image';
@@ -164,6 +177,10 @@ export const getListingMediaDeliveryUrl = (storageKey, type = 'IMAGE') => {
     resource_type: resourceType,
     type: 'upload',
     secure: true,
+    ...(isVideo && !storageKey.includes('.') ? { format: 'mp4' } : {}),
+    ...(resourceType === 'image' || storageKey.endsWith('.jpg')
+      ? { fetch_format: 'auto', quality: 'auto' }
+      : {}),
   });
 };
 

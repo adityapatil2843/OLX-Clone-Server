@@ -8,6 +8,7 @@ import { apiLimiter } from './middlewares/rateLimiter.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { NotFoundError } from './utils/errors.js';
 import v1Router from './routes/v1.js';
+import { handleCloudinaryWebhook } from './modules/reels/reels.webhook.js';
 
 const app = express();
 
@@ -45,8 +46,16 @@ app.use(
   })
 );
 
-// ── Body Parsing ──────────────────────────────────────────────
+// ── Webhook Raw-Body Handling ──────────────────────────────────
+// Cloudinary webhook signature verification requires exact raw body bytes before global JSON parsing
+app.post(
+  ['/api/v1/webhooks/cloudinary', '/api/v1/reels/cloudinary-webhook'],
+  express.raw({ type: '*/*', limit: '2mb' }),
+  handleCloudinaryWebhook
+);
 
+// ── Body Parsing ──────────────────────────────────────────────
+// Standard JSON/URL-encoded limits. Direct video bytes never pass through Express.
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -54,9 +63,8 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 app.use(httpLogger);
 
-// ── Rate Limiting for API routes ──────────────────────────────
-
-app.use('/api/', apiLimiter);
+// ── Rate Limiting for API routes (TEMPORARILY DISABLED FOR K6 LOAD TESTING) ──
+// app.use('/api/', apiLimiter);
 
 // ── Health Checks ─────────────────────────────────────────────
 

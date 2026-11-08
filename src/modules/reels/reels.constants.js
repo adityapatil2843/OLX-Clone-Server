@@ -11,6 +11,20 @@ export const REEL_STATUS = Object.freeze({
   ARCHIVED: 'ARCHIVED',
 });
 
+export const REEL_VISIBILITY_STATE = Object.freeze({
+  DRAFT: 'DRAFT',
+  PUBLISHED: 'PUBLISHED',
+  ARCHIVED: 'ARCHIVED',
+  MODERATED: 'MODERATED',
+});
+
+export const MEDIA_PROCESSING_STATE = Object.freeze({
+  PENDING: 'PENDING',
+  PROCESSING: 'PROCESSING',
+  READY: 'READY',
+  FAILED: 'FAILED',
+});
+
 /** Fields a client is allowed to update via PATCH */
 export const REEL_UPDATABLE_FIELDS = Object.freeze([
   'caption',
@@ -22,7 +36,7 @@ export const REEL_UPDATABLE_FIELDS = Object.freeze([
 
 export const PAGINATION = Object.freeze({
   DEFAULT_LIMIT: 20,
-  MAX_LIMIT: 100,
+  MAX_LIMIT: 20,
 });
 
 export const REEL_PROVIDER = Object.freeze({

@@ -1,14 +1,11 @@
 import { prisma } from '../../db/prisma.js';
 import { LISTING_STATUS } from './listings.constants.js';
+import { getPagination } from '../../utils/pagination.js';
 
 const publicInclude = (userId) => ({
   category: { select: { id: true, name: true, slug: true, attributes: true } },
   owner: { select: { id: true, name: true, avatarUrl: true, isVerifiedSeller: true } },
   media: { orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }] },
-  reels: {
-    where: { deletedAt: null },
-    select: { id: true, caption: true, videoStorageKey: true, thumbnailStorageKey: true, status: true },
-  },
   ...(userId ? { wishlistedBy: { where: { userId }, select: { id: true } } } : {}),
 });
 
@@ -72,16 +69,15 @@ export const archiveListing = (id) =>
   });
 
 export const listOwnedListings = async ({ ownerId, status, page, limit }) => {
-  page = page ?? 1;
-  limit = limit ?? 20;
+  const { skip, take } = getPagination({ page, limit }, { defaultLimit: 20, maxLimit: 50 });
   const where = { ownerId, deletedAt: null, ...(status ? { status } : {}) };
-  const [listings, total] = await prisma.$transaction([
+  const [listings, total] = await Promise.all([
     prisma.listing.findMany({
       where,
       include: publicInclude(ownerId),
       orderBy: { createdAt: 'desc' },
-      skip: (page - 1) * limit,
-      take: limit,
+      skip,
+      take,
     }),
     prisma.listing.count({ where }),
   ]);
@@ -155,44 +151,56 @@ export const listPublicListings = async ({
     orderBy = { price: 'desc' };
   }
 
-  // Fetch candidate listings
+  const { skip, take } = getPagination({ page, limit }, { defaultLimit: 20, maxLimit: 50 });
+
+  // Direct database limit/offset for standard feeds (avoids loading all rows into memory)
+  if (!hasGeoQuery) {
+    const [listings, total] = await Promise.all([
+      prisma.listing.findMany({
+        where,
+        include: publicInclude(userId),
+        orderBy,
+        skip,
+        take,
+      }),
+      prisma.listing.count({ where }),
+    ]);
+    return { listings, total };
+  }
+
+  // Fetch candidate listings for geospatial filtering
   const candidates = await prisma.listing.findMany({
     where,
     include: publicInclude(userId),
     orderBy,
   });
 
-  let filtered = candidates;
+  const userLat = Number(latitude);
+  const userLon = Number(longitude);
+  const maxRadius = radius ? Number(radius) : Infinity;
 
-  if (hasGeoQuery) {
-    const userLat = Number(latitude);
-    const userLon = Number(longitude);
-    const maxRadius = radius ? Number(radius) : Infinity;
+  const filtered = candidates
+    .filter((item) => item.latitude !== null && item.longitude !== null)
+    .map((item) => {
+      const distanceKm = calculateDistanceKm(
+        userLat,
+        userLon,
+        item.latitude,
+        item.longitude
+      );
+      return {
+        ...item,
+        distanceKm: Number(distanceKm.toFixed(2)),
+      };
+    })
+    .filter((item) => item.distanceKm <= maxRadius);
 
-    filtered = candidates
-      .filter((item) => item.latitude !== null && item.longitude !== null)
-      .map((item) => {
-        const distanceKm = calculateDistanceKm(
-          userLat,
-          userLon,
-          item.latitude,
-          item.longitude
-        );
-        return {
-          ...item,
-          distanceKm: Number(distanceKm.toFixed(2)),
-        };
-      })
-      .filter((item) => item.distanceKm <= maxRadius);
-
-    if (sortBy === 'distance') {
-      filtered.sort((a, b) => a.distanceKm - b.distanceKm);
-    }
+  if (sortBy === 'distance') {
+    filtered.sort((a, b) => a.distanceKm - b.distanceKm);
   }
 
   const total = filtered.length;
-  const skip = (page - 1) * limit;
-  const paginatedListings = filtered.slice(skip, skip + limit);
+  const paginatedListings = filtered.slice(skip, skip + safeLimit);
 
   return { listings: paginatedListings, total };
 };
@@ -208,4 +216,3 @@ export const findMediaById = (listingId, mediaId) =>
 
 export const deleteMedia = (mediaId) =>
   prisma.listingMedia.delete({ where: { id: mediaId } });
-

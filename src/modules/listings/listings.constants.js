@@ -12,5 +12,5 @@ export const LISTING_MEDIA_TYPE = Object.freeze({
 
 export const LISTING_PAGINATION = Object.freeze({
   DEFAULT_LIMIT: 20,
-  MAX_LIMIT: 50,
+  MAX_LIMIT: 20,
 });

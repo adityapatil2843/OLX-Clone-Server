@@ -10,5 +10,12 @@ export const removeFromWishlist = async (req, res, next) => {
 };
 
 export const listWishlist = async (req, res, next) => {
-  try { const result = await service.getWishlist(req.user.id, req.query); successResponse(res, result.data, 200, result.meta); } catch (error) { next(error); }
+  try {
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 20;
+    const result = await service.getWishlist(req.user.id, { page, limit });
+    successResponse(res, result.data, 200, result.meta);
+  } catch (error) {
+    next(error);
+  }
 };

@@ -7,6 +7,7 @@ import {
   listUsersQuerySchema,
 } from './users.validation.js';
 import { authenticate, optionalAuthenticate } from '../../middlewares/authenticate.js';
+import { uploadMedia } from '../../middlewares/upload.js';
 
 const router = Router();
 
@@ -25,10 +26,15 @@ router.get(
   controller.getUserById
 );
 
-// PATCH /api/v1/users/:userId/profile - update user profile (ownership enforced)
+// PATCH /api/v1/users/:userId/profile - update user profile (ownership enforced, supports multipart image/avatar or JSON)
 router.patch(
   '/:userId/profile',
   authenticate,
+  uploadMedia.fields([
+    { name: 'avatar', maxCount: 1 },
+    { name: 'image', maxCount: 1 },
+    { name: 'file', maxCount: 1 },
+  ]),
   validate({ params: userIdParamSchema, body: updateProfileSchema }),
   controller.updateProfile
 );

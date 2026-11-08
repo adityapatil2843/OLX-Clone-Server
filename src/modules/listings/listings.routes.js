@@ -15,7 +15,7 @@ import {
 
 import { uploadMedia } from '../../middlewares/upload.js';
 import { BadRequestError } from '../../utils/errors.js';
-import { uploadBufferToCloudinary } from '../reels/reels.storage.js';
+import { uploadBufferToCloudinary } from '../../integrations/storage/cloudinary.service.js';
 
 const router = Router();
 

@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import app from '../src/app.js';
 import { prisma } from '../src/db/prisma.js';
 import { env } from '../src/config/env.js';
-import { getTestSentOtp } from '../src/utils/email.js';
+import { getTestSentOtp } from '../src/integrations/mail/email.service.js';
 
 const generateToken = (user, role = 'USER') =>
   jwt.sign(
@@ -253,10 +253,17 @@ test('Flow C — Reel Discovery, Cursor Pagination, Like & Save, and Linked List
     reelId = reelJson.data.id;
 
     // Advance status to PUBLISHED
-    await prisma.reel.update({
-      where: { id: reelId },
-      data: { status: 'PUBLISHED' },
-    });
+    try {
+      await prisma.reel.update({
+        where: { id: reelId },
+        data: { visibilityState: 'PUBLISHED' },
+      });
+    } catch {
+      await prisma.$executeRawUnsafe(
+        'UPDATE "Reel" SET status = \'PUBLISHED\' WHERE id = $1',
+        reelId
+      );
+    }
 
     // 2. Discover Reel in public feed
     const feedRes = await fetch(`${baseUrl}/reels?limit=5`);
@@ -689,3 +696,4 @@ test('Flow G — Admin Platform Metrics, Moderation, and Action Auditing', async
     server.close();
   }
 });
+

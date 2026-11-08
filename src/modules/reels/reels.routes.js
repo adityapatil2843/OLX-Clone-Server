@@ -5,7 +5,6 @@
 import { Router } from 'express';
 import * as controller from './reels.controller.js';
 import { authenticate, optionalAuthenticate } from '../../middlewares/authenticate.js';
-import { uploadMedia } from '../../middlewares/upload.js';
 
 const router = Router();
 
@@ -23,17 +22,6 @@ router.delete('/:reelId', authenticate, controller.deleteReel);
 // ── Upload Lifecycle ──────────────────────────────────────────
 
 router.post('/:reelId/upload-url', authenticate, controller.requestUploadUrl);
-router.post(
-  '/:reelId/upload',
-  authenticate,
-  uploadMedia.fields([
-    { name: 'video', maxCount: 1 },
-    { name: 'file', maxCount: 1 },
-    { name: 'media', maxCount: 1 },
-    { name: 'thumbnail', maxCount: 1 },
-  ]),
-  controller.uploadReelDirect
-);
 router.post('/:reelId/confirm-upload', authenticate, controller.confirmUpload);
 
 // ── Engagement: Likes & Saves ──────────────────────────────────

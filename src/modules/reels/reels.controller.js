@@ -10,6 +10,7 @@ import {
   reelIdParamSchema,
   listReelsQuerySchema,
   uploadRequestSchema,
+  confirmUploadSchema,
   createCommentSchema,
   listCommentsQuerySchema,
 } from './reels.validation.js';
@@ -98,8 +99,8 @@ export const deleteReel = async (req, res, next) => {
 export const requestUploadUrl = async (req, res, next) => {
   try {
     const { reelId } = parseOrThrow(reelIdParamSchema, req.params);
-    parseOrThrow(uploadRequestSchema, req.body);
-    const params = service.requestUpload(reelId, req.creatorId);
+    const body = parseOrThrow(uploadRequestSchema, req.body);
+    const params = await service.requestUpload(reelId, req.creatorId, body);
     ok(res, params);
   } catch (err) {
     next(err);
@@ -111,18 +112,11 @@ export const requestUploadUrl = async (req, res, next) => {
 export const confirmUpload = async (req, res, next) => {
   try {
     const { reelId } = parseOrThrow(reelIdParamSchema, req.params);
-    const {
-      videoStorageKey,
-      thumbnailStorageKey,
-      videoProvider,
-      durationMs,
-      width,
-      height,
-    } = req.body;
+    const media = parseOrThrow(confirmUploadSchema, req.body);
 
     const reel = await service.confirmUpload(
       reelId,
-      { videoStorageKey, thumbnailStorageKey, videoProvider, durationMs, width, height },
+      media,
       req.creatorId
     );
     ok(res, reel);
@@ -130,27 +124,6 @@ export const confirmUpload = async (req, res, next) => {
     next(err);
   }
 };
-
-// ── POST /api/v1/reels/:reelId/upload ─────────────────────────
-
-export const uploadReelDirect = async (req, res, next) => {
-  try {
-    const { reelId } = parseOrThrow(reelIdParamSchema, req.params);
-    const videoFile = req.files?.video?.[0] || req.files?.file?.[0] || req.files?.media?.[0] || req.file;
-    const thumbnailFile = req.files?.thumbnail?.[0] || null;
-
-    const reel = await service.uploadReelDirect(
-      reelId,
-      req.creatorId,
-      videoFile,
-      thumbnailFile
-    );
-    ok(res, reel, 201);
-  } catch (err) {
-    next(err);
-  }
-};
-
 
 // ── Engagement Handlers ────────────────────────────────────────
 

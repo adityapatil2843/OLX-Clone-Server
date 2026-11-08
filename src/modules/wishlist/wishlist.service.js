@@ -1,5 +1,5 @@
 import { ConflictError, NotFoundError } from '../../utils/errors.js';
-import { getListingMediaDeliveryUrl } from '../reels/reels.storage.js';
+import { getListingMediaDeliveryUrl } from '../../integrations/storage/cloudinary.service.js';
 import * as listingRepo from '../listings/listings.repository.js';
 import * as repo from './wishlist.repository.js';
 

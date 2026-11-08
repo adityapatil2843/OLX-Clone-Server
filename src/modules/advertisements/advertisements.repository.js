@@ -1,12 +1,13 @@
 import { prisma } from '../../db/prisma.js';
 import { AD_STATUS } from './advertisements.constants.js';
+import { getPagination } from '../../utils/pagination.js';
 
 export const createAdvertisement = (data) =>
   prisma.advertisement.create({
     data,
     include: {
       listing: { select: { id: true, title: true, status: true, price: true } },
-      reel: { select: { id: true, caption: true, status: true } },
+      reel: { select: { id: true, caption: true } },
     },
   });
 
@@ -15,26 +16,27 @@ export const findAdvertisementById = (id) =>
     where: { id },
     include: {
       listing: { select: { id: true, title: true, status: true, price: true } },
-      reel: { select: { id: true, caption: true, status: true } },
+      reel: { select: { id: true, caption: true } },
     },
   });
 
 export const listAdvertisementsByOwner = async ({ ownerId, status, page = 1, limit = 20 }) => {
+  const { skip, take } = getPagination({ page, limit }, { defaultLimit: 20, maxLimit: 100 });
   const where = {
     ownerId,
     ...(status ? { status } : {}),
   };
 
-  const [ads, total] = await prisma.$transaction([
+  const [ads, total] = await Promise.all([
     prisma.advertisement.findMany({
       where,
       include: {
         listing: { select: { id: true, title: true, status: true, price: true } },
-        reel: { select: { id: true, caption: true, status: true } },
+        reel: { select: { id: true, caption: true } },
       },
       orderBy: { createdAt: 'desc' },
-      skip: (page - 1) * limit,
-      take: limit,
+      skip,
+      take,
     }),
     prisma.advertisement.count({ where }),
   ]);
@@ -51,7 +53,7 @@ export const updateAdvertisementStatus = (id, status, stoppedAt = null) =>
     },
     include: {
       listing: { select: { id: true, title: true, status: true, price: true } },
-      reel: { select: { id: true, caption: true, status: true } },
+      reel: { select: { id: true, caption: true } },
     },
   });
 

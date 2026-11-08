@@ -79,15 +79,22 @@ test('Reels Module — Feed, Creation & Validation', async () => {
     assert.equal(uploadUrlJson.success, true);
     assert.ok(uploadUrlJson.data.uploadUrl);
 
-    // 8. DELETE /api/v1/reels/:reelId (archive)
+    // 8. Phase 4: Direct upload POST /:reelId/upload must return 404 (removed)
+    const directUploadRes = await fetch(`${baseUrl}/${testReelId}/upload`, {
+      method: 'POST',
+    });
+    assert.equal(directUploadRes.status, 404, 'Direct upload endpoint must be removed');
+
+    // 9. DELETE /api/v1/reels/:reelId (archive)
     const deleteRes = await fetch(`${baseUrl}/${testReelId}`, {
       method: 'DELETE',
     });
     assert.equal(deleteRes.status, 200);
   } finally {
     if (testReelId) {
-      await prisma.reel.deleteMany({ where: { id: testReelId } });
+      await prisma.reel.deleteMany({ where: { id: testReelId } }).catch(() => {});
     }
     server.close();
+    await prisma.$disconnect().catch(() => {});
   }
 });

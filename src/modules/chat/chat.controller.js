@@ -12,7 +12,9 @@ export const getOrCreateConversation = async (req, res, next) => {
 
 export const listConversations = async (req, res, next) => {
   try {
-    const result = await service.listConversations(req.user.id, req.query);
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.max(1, Math.min(100, parseInt(req.query.limit, 10) || 20));
+    const result = await service.listConversations(req.user.id, { ...req.query, page, limit });
     successResponse(res, result.data, 200, result.meta);
   } catch (err) {
     next(err);
@@ -32,6 +34,15 @@ export const sendMessage = async (req, res, next) => {
   try {
     const message = await service.sendMessage(req.params.conversationId, req.user.id, req.body);
     successResponse(res, message, 201);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const uploadImage = async (req, res, next) => {
+  try {
+    const result = await service.uploadImage(req.params.conversationId, req.user.id, req.file);
+    successResponse(res, result, 201);
   } catch (err) {
     next(err);
   }

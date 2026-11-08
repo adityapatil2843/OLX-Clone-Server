@@ -10,7 +10,7 @@ import {
   NotFoundError,
 } from '../../utils/errors.js';
 import { AUTH_MESSAGES, OTP_PURPOSES } from './auth.constants.js';
-import { sendOtpEmail } from '../../utils/email.js';
+import { sendOtpEmail } from '../../integrations/mail/email.service.js';
 
 /**
  * Strips sensitive fields like passwordHash from user object before returning.

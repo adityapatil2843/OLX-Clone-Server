@@ -1,6 +1,24 @@
 import rateLimit from 'express-rate-limit';
 import { env } from '../config/env.js';
 
+const shouldSkipRateLimit = (req) => {
+  // Test mode mein hamesha skip
+  if (env.NODE_ENV === 'test') return true;
+
+  // Development mode mein: K6 aur localhost ko bypass
+  if (env.NODE_ENV === 'development') {
+    const userAgent = req.headers['user-agent'] || '';
+    if (userAgent.toLowerCase().includes('k6')) {
+      return true;
+    }
+
+    const ip = req.ip || req.socket?.remoteAddress || '';
+    return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+  }
+
+  return false;
+};
+
 export const apiLimiter = rateLimit({
   windowMs: env.RATE_LIMIT_WINDOW_MS,
   max: env.RATE_LIMIT_MAX,
@@ -12,7 +30,7 @@ export const apiLimiter = rateLimit({
       message: 'Too many requests from this IP, please try again later.',
     },
   },
-  skip: () => env.NODE_ENV === 'test',
+  skip: shouldSkipRateLimit,
 });
 
 export const authLimiter = rateLimit({
@@ -26,7 +44,7 @@ export const authLimiter = rateLimit({
       message: 'Too many authentication attempts, please try again later.',
     },
   },
-  skip: () => env.NODE_ENV === 'test',
+  skip: shouldSkipRateLimit,
 });
 
 export default apiLimiter;

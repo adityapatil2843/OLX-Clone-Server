@@ -1,4 +1,5 @@
 import { prisma } from '../../db/prisma.js';
+import { getPagination } from '../../utils/pagination.js';
 
 const conversationInclude = {
   listing: {
@@ -74,19 +75,26 @@ export const isUserParticipant = async (conversationId, userId) => {
 };
 
 export const listConversationsForUser = async ({ userId, page = 1, limit = 20 }) => {
+  const { skip, take } = getPagination({ page, limit }, { defaultLimit: 20, maxLimit: 100 });
+
   const where = {
     participants: {
       some: { userId },
     },
+    messages: {
+      some: {
+        deletedAt: null,
+      },
+    },
   };
 
-  const [conversations, total] = await prisma.$transaction([
+  const [conversations, total] = await Promise.all([
     prisma.conversation.findMany({
       where,
       include: conversationInclude,
       orderBy: { updatedAt: 'desc' },
-      skip: (page - 1) * limit,
-      take: limit,
+      skip,
+      take,
     }),
     prisma.conversation.count({ where }),
   ]);
@@ -139,6 +147,7 @@ export const createMessage = async ({ conversationId, senderId, content, type })
 };
 
 export const listMessages = async ({ conversationId, cursor, limit = 30 }) => {
+  const parsedLimit = Math.max(1, parseInt(limit, 10) || 30);
   const where = {
     conversationId,
     deletedAt: null,
@@ -157,13 +166,13 @@ export const listMessages = async ({ conversationId, cursor, limit = 30 }) => {
         },
       },
       orderBy: { createdAt: 'desc' },
-      take: limit + 1,
+      take: parsedLimit + 1,
       cursor: { id: cursor },
       skip: 1,
     });
 
-    const hasMore = messages.length > limit;
-    const items = hasMore ? messages.slice(0, limit) : messages;
+    const hasMore = messages.length > parsedLimit;
+    const items = hasMore ? messages.slice(0, parsedLimit) : messages;
     const nextCursor = hasMore ? items[items.length - 1].id : null;
 
     return {
@@ -185,11 +194,11 @@ export const listMessages = async ({ conversationId, cursor, limit = 30 }) => {
       },
     },
     orderBy: { createdAt: 'desc' },
-    take: limit + 1,
+    take: parsedLimit + 1,
   });
 
-  const hasMore = messages.length > limit;
-  const items = hasMore ? messages.slice(0, limit) : messages;
+  const hasMore = messages.length > parsedLimit;
+  const items = hasMore ? messages.slice(0, parsedLimit) : messages;
   const nextCursor = hasMore ? items[items.length - 1].id : null;
 
   return {

@@ -32,7 +32,8 @@ export const updateProfile = async (req, res, next) => {
     ) {
       throw new ForbiddenError('You can only update your own profile');
     }
-    const user = await service.updateUserProfile(targetUserId, req.body);
+    const avatarFile = req.file || (req.files && (req.files.avatar?.[0] || req.files.image?.[0] || req.files.file?.[0])) || null;
+    const user = await service.updateUserProfile(targetUserId, req.body, avatarFile);
     successResponse(res, user);
   } catch (err) {
     next(err);

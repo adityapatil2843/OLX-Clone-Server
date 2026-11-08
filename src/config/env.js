@@ -46,6 +46,8 @@ const envSchema = z.object({
     .default('10')
     .transform((val) => parseInt(val, 10))
     .pipe(z.number().int().min(4).max(16)),
+  EMAIL_USER: z.string().optional(),
+  EMAIL_PASS: z.string().optional(),
 });
 
 const parseEnv = () => {

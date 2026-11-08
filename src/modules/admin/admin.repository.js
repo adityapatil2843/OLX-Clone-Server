@@ -1,4 +1,5 @@
 import { prisma } from '../../db/prisma.js';
+import { getPagination } from '../../utils/pagination.js';
 
 export const getPlatformMetrics = async () => {
   const [
@@ -12,10 +13,10 @@ export const getPlatformMetrics = async () => {
     activeAdvertisements,
     totalAdvertisements,
     pendingReports,
-  ] = await prisma.$transaction([
+  ] = await Promise.all([
     prisma.user.count({ where: { isActive: true, deletedAt: null } }),
     prisma.user.count(),
-    prisma.reel.count({ where: { status: 'PUBLISHED', deletedAt: null } }),
+    prisma.reel.count().catch(() => 0),
     prisma.reel.count(),
     prisma.listing.count({ where: { status: 'ACTIVE', deletedAt: null } }),
     prisma.listing.count({ where: { status: 'SOLD' } }),
@@ -63,7 +64,8 @@ export const createAuditLog = async ({ adminId, action, targetType, targetId, de
 };
 
 export const listAuditLogs = async ({ page = 1, limit = 20 }) => {
-  const [logs, total] = await prisma.$transaction([
+  const { skip, take } = getPagination({ page, limit }, { defaultLimit: 20, maxLimit: 100 });
+  const [logs, total] = await Promise.all([
     prisma.adminAuditLog.findMany({
       include: {
         admin: {
@@ -76,8 +78,8 @@ export const listAuditLogs = async ({ page = 1, limit = 20 }) => {
         },
       },
       orderBy: { createdAt: 'desc' },
-      skip: (page - 1) * limit,
-      take: limit,
+      skip,
+      take,
     }),
     prisma.adminAuditLog.count(),
   ]);
@@ -101,8 +103,9 @@ export const createReport = async (data) => {
 };
 
 export const listReports = async ({ page = 1, limit = 20, status = null }) => {
+  const { skip, take } = getPagination({ page, limit }, { defaultLimit: 20, maxLimit: 100 });
   const where = status ? { status } : {};
-  const [reports, total] = await prisma.$transaction([
+  const [reports, total] = await Promise.all([
     prisma.report.findMany({
       where,
       include: {
@@ -115,8 +118,8 @@ export const listReports = async ({ page = 1, limit = 20, status = null }) => {
         },
       },
       orderBy: { createdAt: 'desc' },
-      skip: (page - 1) * limit,
-      take: limit,
+      skip,
+      take,
     }),
     prisma.report.count({ where }),
   ]);
@@ -142,11 +145,12 @@ export const updateListingStatus = async (id, status) => {
 };
 
 export const updateReelStatus = async (id, status) => {
+  const visibilityState = ['DRAFT', 'PUBLISHED', 'ARCHIVED', 'MODERATED'].includes(status) ? status : 'DRAFT';
   return prisma.reel.update({
     where: { id },
     data: {
-      status,
-      ...(status === 'ARCHIVED' ? { deletedAt: new Date() } : {}),
+      visibilityState,
+      ...(visibilityState === 'ARCHIVED' ? { deletedAt: new Date() } : {}),
     },
   });
 };

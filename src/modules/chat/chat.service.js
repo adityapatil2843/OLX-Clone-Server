@@ -5,6 +5,7 @@ import {
   ForbiddenError,
   NotFoundError,
 } from '../../utils/errors.js';
+import { uploadBufferToCloudinary } from '../../integrations/storage/cloudinary.service.js';
 
 export const getOrCreateConversation = async ({ recipientId, listingId = null }, userId) => {
   if (recipientId === userId) {
@@ -50,7 +51,8 @@ export const getOrCreateConversation = async ({ recipientId, listingId = null },
 };
 
 export const listConversations = async (userId, query) => {
-  const { page = 1, limit = 20 } = query;
+  const page = Math.max(1, parseInt(query?.page, 10) || 1);
+  const limit = Math.max(1, Math.min(100, parseInt(query?.limit, 10) || 20));
   const result = await repo.listConversationsForUser({ userId, page, limit });
 
   return {
@@ -96,6 +98,33 @@ export const sendMessage = async (conversationId, userId, payload) => {
     content: payload.content,
     type: payload.type,
   });
+};
+
+export const uploadImage = async (conversationId, userId, file) => {
+  if (!file) throw new BadRequestError('Image file is required');
+  if (!file.mimetype?.startsWith('image/')) {
+    throw new BadRequestError('Only image files are allowed');
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    throw new BadRequestError('Image must be 10 MB or smaller');
+  }
+
+  const conversation = await repo.findConversationById(conversationId);
+  if (!conversation) throw new NotFoundError(`Conversation '${conversationId}' not found`);
+  if (!(await repo.isUserParticipant(conversationId, userId))) {
+    throw new ForbiddenError('You are not a participant in this conversation');
+  }
+
+  const uploaded = await uploadBufferToCloudinary(file.buffer, {
+    folder: `chat/${conversationId}`,
+    resource_type: 'image',
+  });
+
+  return {
+    url: uploaded.secure_url || uploaded.url,
+    mimeType: file.mimetype,
+    size: file.size,
+  };
 };
 
 export const getMessages = async (conversationId, userId, query) => {

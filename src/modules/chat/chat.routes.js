@@ -2,6 +2,7 @@ import { Router } from 'express';
 import * as controller from './chat.controller.js';
 import { authenticate } from '../../middlewares/authenticate.js';
 import { validate } from '../../middlewares/validate.js';
+import { uploadMedia } from '../../middlewares/upload.js';
 import {
   conversationIdParamSchema,
   createConversationSchema,
@@ -38,5 +39,12 @@ router
     validate({ params: conversationIdParamSchema, body: sendMessageSchema }),
     controller.sendMessage
   );
+
+router.post(
+  '/:conversationId/images',
+  validate({ params: conversationIdParamSchema }),
+  uploadMedia.single('file'),
+  controller.uploadImage
+);
 
 export default router;

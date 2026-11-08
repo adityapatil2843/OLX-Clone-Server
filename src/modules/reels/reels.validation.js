@@ -77,9 +77,33 @@ export const listReelsQuerySchema = z.object({
 // ── Signed upload request ─────────────────────────────────────
 
 export const uploadRequestSchema = z.object({
-  fileName: z.string().min(1).max(255),
-  fileType: z.enum(['video/mp4', 'video/quicktime', 'video/webm', 'video/x-msvideo']),
-  fileSizeBytes: z.number().int().positive().max(500 * 1024 * 1024, 'Max 500 MB'),
+  fileName: z.string().min(1).max(255).optional(),
+  fileType: z.string().min(1).max(100).optional(),
+  fileSizeBytes: z
+    .number()
+    .int()
+    .positive('File size must be positive')
+    .max(500 * 1024 * 1024, 'Declared file size exceeds 500 MB limit')
+    .optional(),
+});
+
+// Cloudinary returns the uploaded asset URL (or public id) to the client.
+// Note: Final state is verified and published by the Cloudinary webhook.
+export const confirmUploadSchema = z.object({
+  videoStorageKey: z.string().trim().min(1).max(500).optional(),
+  storageKey: z.string().trim().min(1).max(500).optional(),
+  thumbnailStorageKey: z.string().trim().min(1).max(500).optional().nullable(),
+  thumbnailKey: z.string().trim().min(1).max(500).optional().nullable(),
+  videoProvider: z.string().trim().min(1).max(50).default('cloudinary').optional(),
+  provider: z.string().trim().min(1).max(50).default('cloudinary').optional(),
+  uploadToken: z.string().optional(),
+  mimeType: z.string().optional(),
+  fileType: z.string().optional(),
+  sizeBytes: z.number().int().positive().optional(),
+  fileSizeBytes: z.number().int().positive().optional(),
+  durationMs: z.number().int().positive().optional().nullable(),
+  width: z.number().int().positive().optional().nullable(),
+  height: z.number().int().positive().optional().nullable(),
 });
 
 // ── Engagement ────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../../utils/errors.js';
-import { generateListingUploadSignature, getListingMediaDeliveryUrl, uploadBufferToCloudinary } from '../reels/reels.storage.js';
+import { generateListingUploadSignature, getListingMediaDeliveryUrl, uploadBufferToCloudinary, optimizeCloudinaryUrl } from '../../integrations/storage/cloudinary.service.js';
 import * as repo from './listings.repository.js';
 import { validateCategoryAttributes } from '../categories/categories.service.js';
 import { stopListingAdvertisements } from '../advertisements/advertisements.service.js';
@@ -8,29 +8,51 @@ import { LISTING_STATUS } from './listings.constants.js';
 
 const withWishlistState = (listing) => {
   if (!listing) return listing;
-  const { wishlistedBy, media = [], reels = [], ...data } = listing;
+  const { wishlistedBy, media = [], reels = [], reelProductTags = [], owner, ...data } = listing;
+
+  const rawReels = (reels && reels.length > 0)
+    ? reels
+    : (reelProductTags || []).map((t) => t.reel).filter(Boolean);
+
   return {
     ...data,
+    ...(owner ? { owner: { ...owner, avatarUrl: owner.avatarUrl ? optimizeCloudinaryUrl(owner.avatarUrl) : null } } : {}),
     media: media.map((item) => ({
       ...item,
       url: (item.thumbnailKey && item.thumbnailKey.startsWith('http'))
-        ? item.thumbnailKey
+        ? optimizeCloudinaryUrl(item.thumbnailKey)
         : getListingMediaDeliveryUrl(item.storageKey, item.type),
     })),
-    reels: reels.map((r) => {
-      const isPoster = r.thumbnailStorageKey && r.thumbnailStorageKey === r.videoStorageKey;
+    reels: rawReels.map((r) => {
+      const asset = r.mediaAsset || null;
+      const sKey = asset?.storageKey || r.videoStorageKey || null;
+      const tKey = asset?.thumbnailKey || r.thumbnailStorageKey || null;
+      const isPoster = tKey && sKey && tKey === sKey;
+
+      const videoUrl = sKey
+        ? (sKey.startsWith('http') ? sKey : getListingMediaDeliveryUrl(sKey, 'VIDEO'))
+        : null;
+
+      const thumbnailUrl = tKey
+        ? (tKey.startsWith('http')
+            ? optimizeCloudinaryUrl(tKey)
+            : (isPoster
+                ? getListingMediaDeliveryUrl(tKey + '.jpg', 'VIDEO')
+                : getListingMediaDeliveryUrl(tKey, 'IMAGE')))
+        : (sKey
+            ? (sKey.startsWith('http')
+                ? optimizeCloudinaryUrl(sKey.replace(/.[^.]+$/, '.jpg'))
+                : getListingMediaDeliveryUrl(sKey + '.jpg', 'VIDEO'))
+            : null);
+
       return {
-        ...r,
-        videoUrl: r.videoStorageKey
-          ? (r.videoStorageKey.startsWith('http') ? r.videoStorageKey : getListingMediaDeliveryUrl(r.videoStorageKey, 'VIDEO'))
-          : null,
-        thumbnailUrl: r.thumbnailStorageKey
-          ? (r.thumbnailStorageKey.startsWith('http')
-              ? r.thumbnailStorageKey
-              : (isPoster
-                  ? getListingMediaDeliveryUrl(r.thumbnailStorageKey + '.jpg', 'VIDEO')
-                  : getListingMediaDeliveryUrl(r.thumbnailStorageKey, 'IMAGE')))
-          : null,
+        id: r.id,
+        caption: r.caption,
+        visibilityState: r.visibilityState || r.status || 'PUBLISHED',
+        status: r.status || r.visibilityState || 'PUBLISHED',
+        videoUrl,
+        thumbnailUrl,
+        createdAt: r.createdAt,
       };
     }),
     ...(wishlistedBy ? { isWishlisted: wishlistedBy.length > 0 } : {}),
