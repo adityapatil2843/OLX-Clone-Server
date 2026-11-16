@@ -37,7 +37,7 @@ JWT bearer access tokens are verified in `authenticate`; refresh tokens are pers
 
 ## Search, chat, notifications, deployment
 
-Listing location fields and indexes exist. A complete search implementation, cache/Redis integration, Socket.IO transport, notification subsystem, deployment manifests, CI/CD, monitoring/alerts, and backup/restore procedure were not established by this audit. The schema supports chat, reports, ads, and audit records, but persistence and authorization require feature-level verification.
+Listing location fields and indexes exist. A complete search implementation, cache/Redis integration, Socket.IO transport, deployment manifests, CI/CD, monitoring/alerts, and backup/restore procedure were not established by this audit. In-app notifications now have persisted records, user preferences, authenticated read/delete APIs, and hooks for chat, listing moderation/status, Reel engagement, and report resolution; push/email delivery is not included. The schema supports chat, reports, ads, and audit records, but persistence and authorization require feature-level verification.
 
 ## Limitations and proposed next steps
 

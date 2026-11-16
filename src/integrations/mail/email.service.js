@@ -37,14 +37,14 @@ export const sendOtpEmail = async ({ to, otp, purpose }) => {
     try {
       const subject =
         purpose === 'REGISTRATION'
-          ? 'Verify your account - Bazaar 360'
+          ? 'Verify your account - Bazarr 360'
           : purpose === 'PASSWORD_RESET'
-          ? 'Reset your password - Bazaar 360'
-          : 'Your Verification Code - Bazaar 360';
+          ? 'Reset your password - Bazarr 360'
+          : 'Your Verification Code - Bazarr 360';
 
       const html = `
         <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 10px; background-color: #ffffff;">
-          <h2 style="color: #002f34; margin-bottom: 8px;">Bazaar 360</h2>
+          <h2 style="color: #002f34; margin-bottom: 8px;">Bazarr 360</h2>
           <p style="font-size: 15px; color: #4a5568; line-height: 1.5;">
             Use the verification code below to complete your ${purpose.toLowerCase().replace('_', ' ')}:
           </p>
@@ -58,13 +58,13 @@ export const sendOtpEmail = async ({ to, otp, purpose }) => {
           </p>
           <hr style="border: none; border-top: 1px solid #edf2f7; margin: 24px 0;" />
           <p style="font-size: 12px; color: #a0aec0; text-align: center;">
-            &copy; ${new Date().getFullYear()} Bazaar 360. All rights reserved.
+            &copy; ${new Date().getFullYear()} Bazarr 360. All rights reserved.
           </p>
         </div>
       `;
 
       await transporter.sendMail({
-        from: `"Bazaar 360" <${env.EMAIL_USER}>`,
+        from: `"Bazarr 360" <${env.EMAIL_USER}>`,
         to: normalizedEmail,
         subject,
         html,

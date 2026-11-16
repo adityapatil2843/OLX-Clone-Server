@@ -3,6 +3,7 @@ import { prisma } from '../../db/prisma.js';
 import { NotFoundError } from '../../utils/errors.js';
 import { ADMIN_ACTIONS } from './admin.constants.js';
 import { stopListingAdvertisements } from '../advertisements/advertisements.service.js';
+import { createNotificationIfEnabled } from '../notifications/notifications.service.js';
 
 export const getMetrics = async () => {
   return repo.getPlatformMetrics();
@@ -35,6 +36,9 @@ export const moderateListing = async (listingId, { status, reason }, adminId) =>
       reason: reason || null,
     },
   });
+  if (status === 'ACTIVE' || status === 'ARCHIVED') {
+    await createNotificationIfEnabled({ userId: listing.ownerId, actorId: adminId, type: status === 'ACTIVE' ? 'LISTING_APPROVED' : 'LISTING_REJECTED', title: `Listing ${status === 'ACTIVE' ? 'approved' : 'rejected'}`, message: `Your listing was ${status === 'ACTIVE' ? 'approved' : 'rejected'}.`, data: { listingId } });
+  }
 
   return updated;
 };
@@ -62,6 +66,9 @@ export const moderateReel = async (reelId, { status, reason }, adminId) => {
       reason: reason || null,
     },
   });
+  if (report.reporterId && payload.status !== report.status) {
+    await createNotificationIfEnabled({ userId: report.reporterId, actorId: adminId, type: 'REPORT_RESOLVED', title: 'Report updated', message: `Your report was ${payload.status.toLowerCase()}.`, data: { reportId, status: payload.status } });
+  }
 
   return updated;
 };

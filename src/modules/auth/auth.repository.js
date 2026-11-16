@@ -47,6 +47,30 @@ export const createUser = async ({
   });
 };
 
+export const createUserWithWelcomeLedger = async (userData, bonusConfig) => {
+  return prisma.$transaction(async (tx) => {
+    const user = await tx.user.create({
+      data: {
+        ...userData,
+        coinsBalance: bonusConfig.amount,
+      },
+    });
+
+    await tx.coinTransaction.create({
+      data: {
+        userId: user.id,
+        amount: bonusConfig.amount,
+        balanceAfter: bonusConfig.amount,
+        type: bonusConfig.type,
+        reason: bonusConfig.reason || 'Welcome bonus',
+        idempotencyKey: `welcome-bonus-${user.id}`,
+      },
+    });
+
+    return user;
+  });
+};
+
 export const updateUserPassword = async (userId, passwordHash) => {
   return prisma.user.update({
     where: { id: userId },

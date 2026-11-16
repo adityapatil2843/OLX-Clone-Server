@@ -1,0 +1,19 @@
+export const NOTIFICATION_TYPES = Object.freeze({
+  NEW_MESSAGE: 'NEW_MESSAGE',
+  LISTING_APPROVED: 'LISTING_APPROVED',
+  LISTING_REJECTED: 'LISTING_REJECTED',
+  LISTING_SOLD: 'LISTING_SOLD',
+  REEL_LIKED: 'REEL_LIKED',
+  REEL_COMMENTED: 'REEL_COMMENTED',
+  REPORT_RESOLVED: 'REPORT_RESOLVED',
+});
+
+export const TYPE_TO_PREFERENCE = Object.freeze({
+  NEW_MESSAGE: 'newMessage',
+  LISTING_APPROVED: 'listingUpdates',
+  LISTING_REJECTED: 'listingUpdates',
+  LISTING_SOLD: 'listingUpdates',
+  REEL_LIKED: 'reelActivity',
+  REEL_COMMENTED: 'reelActivity',
+  REPORT_RESOLVED: 'moderationUpdates',
+});

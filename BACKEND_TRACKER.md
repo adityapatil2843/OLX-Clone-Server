@@ -239,6 +239,9 @@ Confirm the actual scope during Phase 0. Do not assume every candidate feature c
 | 18 Oct 2026 | Integration test suite | `npm test` | Exit 0: 7 passed, 0 failed | Verified foundations, categories, users, reels |
 | 19 Oct 2026 | Password & RefreshToken migration | `npx prisma db push` & migration SQL | Exit 0: database in sync | Added `passwordHash` to User and created `RefreshToken` model |
 | 19 Oct 2026 | Auth module & tests | `npm test` | Exit 0: 8 passed, 0 failed | Auth registration, login, rotation, logout, me, + 7 existing suites pass |
+| 14 Nov 2026 | Wallet & Boost Migration | `apply-boost-migration.js` & `prisma generate` | Exit 0: migration applied | Added User.coinsBalance, CoinTransaction, BoostPackage, partial unique index |
+| 14 Nov 2026 | Boost system integration tests | `node --test tests/boost-system.test.js` | Exit 0: 4 passed, 0 failed | Verified welcome bonus, negative paths, idempotency, duplicate active guard, feed mixer |
+| 14 Nov 2026 | Full marketplace flows regression | `node --test tests/marketplace-flows.test.js` | Exit 0: 7 passed, 0 failed | All 7 marketplace flows pass with updated package boost flow and negative budget rejection |
 
 ## 7. Risks and blockers
 
@@ -338,25 +341,32 @@ Do not provision billable resources without owner approval.
      - Configured `npm test` script to `node --test tests/`.
      - Created `tests/marketplace-flows.test.js` covering Flows A, B, C, D, E, F, and G.
      - Ran full test suite: 17 out of 17 tests passed with 0 failures.
+  11. Production-Grade Welcome Coin Backfill & Mobile Wallet UI Integration:
+     - Built `server/scripts/backfill-welcome-coins.js` with per-user PostgreSQL row locks (`SELECT ... FOR UPDATE`), in-transaction eligibility re-verification (`isActive = true`, `deletedAt = null`, target `idempotencyKey` absence), parameterized atomic balance update (`UPDATE ... RETURNING coinsBalance`), and abort-safe `P2002` conflict handling.
+     - Added npm script `"script:backfill-welcome-coins"` in `server/package.json`.
+     - Built comprehensive backend test suite `server/tests/wallet-backfill.test.js` (5 passed, 0 failed) verifying first-time credit, rerun idempotency, balanceAfter correctness, inactive/deleted exclusions, concurrent execution race safety, and dry-run simulation.
+     - Implemented user-scoped wallet React Query caching in `mobile/src/hooks/useWallet.ts` and query cache purge on logout in `mobile/src/services/auth.service.ts`.
+     - Integrated live coin balance pill in `mobile/src/components/account/AccountHeader.tsx` and drawer menu in `mobile/src/components/account/AccountSideDrawer.tsx`.
+     - Enhanced `mobile/src/components/boost/BoostModal.tsx` with live balance display, package selection remaining balance preview, insufficient balance deficit warnings, in-flight submission lock, and post-boost/error server synchronization.
+     - Created `mobile/tests/wallet-boost.test.tsx` (8 passed, 0 failed) and validated TypeScript typecheck (0 errors).
 - Files changed / created:
-  - `.gitignore`
-  - `.env`
-  - `package.json`
-  - `prisma/schema.prisma`
-  - `prisma/seed.js`
-  - `src/utils/email.js`
-  - `src/middlewares/authenticate.js`
-  - `src/middlewares/authorize.js`
-  - `src/modules/auth/*`
-  - `src/modules/categories/*`
-  - `src/modules/listings/*`
-  - `src/modules/reels/*`
-  - `src/modules/advertisements/*`
-  - `src/modules/chat/*`
-  - `src/modules/admin/*`
-  - `src/routes/v1.js`
-  - `tests/marketplace-flows.test.js`
-  - `BACKEND_TRACKER.md`
+  - `server/scripts/backfill-welcome-coins.js`
+  - `server/tests/wallet-backfill.test.js`
+  - `server/package.json`
+  - `server/PHASE.md`
+  - `server/BACKEND_TRACKER.md`
+  - `mobile/src/hooks/useWallet.ts`
+  - `mobile/src/services/auth.service.ts`
+  - `mobile/src/components/account/AccountHeader.tsx`
+  - `mobile/src/components/account/AccountSideDrawer.tsx`
+  - `mobile/src/components/boost/BoostModal.tsx`
+  - `mobile/tests/wallet-boost.test.tsx`
+- Verification commands and results:
+  - `node --test tests/wallet-backfill.test.js`: Exit 0 (5 passed, 0 failed)
+  - `node --test tests/boost-system.test.js`: Exit 0 (4 passed, 0 failed)
+  - `node scripts/backfill-welcome-coins.js --dry-run`: Exit 0 (Dry-run summary verified)
+  - `npm test tests/wallet-boost.test.tsx`: Exit 0 (8 passed, 0 failed)
+  - `npm run typecheck`: Exit 0 (Zero TypeScript errors)
 - Verification commands and results:
   - `node prisma/seed.js`: Exit 0 (Dev, admin, and 13 categories seeded)
   - `npm test`: Exit 0 (17 passed, 0 failed, 11.3s duration)

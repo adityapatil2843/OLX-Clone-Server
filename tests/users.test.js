@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import jwt from 'jsonwebtoken';
 import app from '../src/app.js';
 import { prisma } from '../src/db/prisma.js';
+import { env } from '../src/config/env.js';
 
 test('Users Module — Endpoints & Protection', async () => {
   const server = app.listen(0);
@@ -64,6 +66,42 @@ test('Users Module — Endpoints & Protection', async () => {
     assert.equal(updateRes.status, 200);
     const updateJson = await updateRes.json();
     assert.equal(updateJson.data.bio, 'Updated test seller bio');
+
+    // 7. DELETE /api/v1/users/:id rejects unauthorized / forbidden deletion
+    const foreignUserToken = jwt.sign(
+      { sub: '11111111-1111-1111-1111-111111111111', role: 'USER' },
+      env.JWT_ACCESS_SECRET,
+      { expiresIn: '1h' }
+    );
+    const forbiddenDeleteRes = await fetch(`${baseUrl}/${testUserId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${foreignUserToken}` },
+    });
+    assert.equal(forbiddenDeleteRes.status, 403, 'Users cannot delete accounts belonging to others');
+
+    // 8. DELETE /api/v1/users/:id successfully soft deletes when owner authenticated
+    const ownerToken = jwt.sign(
+      { sub: testUserId, role: 'USER' },
+      env.JWT_ACCESS_SECRET,
+      { expiresIn: '1h' }
+    );
+    const deleteRes = await fetch(`${baseUrl}/${testUserId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${ownerToken}` },
+    });
+    assert.equal(deleteRes.status, 200);
+    const deleteJson = await deleteRes.json();
+    assert.equal(deleteJson.success, true);
+    assert.match(deleteJson.data.message, /deleted successfully/i);
+
+    // 9. Soft deleted user is no longer accessible via public profile
+    const afterDeleteGetRes = await fetch(`${baseUrl}/${testUserId}`);
+    assert.equal(afterDeleteGetRes.status, 404, 'Soft deleted user profile must return 404');
+
+    // 10. Database record has isActive: false and deletedAt populated
+    const dbUser = await prisma.user.findUnique({ where: { id: testUserId } });
+    assert.equal(dbUser.isActive, false);
+    assert.ok(dbUser.deletedAt instanceof Date);
   } finally {
     if (testUserId) {
       await prisma.user.deleteMany({ where: { id: testUserId } });

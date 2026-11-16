@@ -5,7 +5,11 @@
  */
 
 import crypto from 'node:crypto';
+import { prisma } from '../../db/prisma.js';
 import * as repo from './reels.repository.js';
+import { findEligibleSponsoredAdvertisements } from '../advertisements/advertisements.repository.js';
+import { mixReelsFeed } from '../advertisements/advertisements.mixer.js';
+import { createNotificationIfEnabled } from '../notifications/notifications.service.js';
 import { generateUploadSignature, getSignedDeliveryUrl, optimizeCloudinaryUrl } from '../../integrations/storage/cloudinary.service.js';
 import { REEL_STATUS, REEL_VISIBILITY_STATE, REEL_UPDATABLE_FIELDS } from './reels.constants.js';
 import { ApiError, NotFoundError, ForbiddenError, ConflictError } from '../../utils/errors.js';
@@ -177,10 +181,28 @@ export const listReels = async (queryParams, userId = null) => {
   };
 
   const result = await repo.listReels(filters);
+  const formattedReels = result.reels.map(formatReel);
+
+  // If public feed, mix eligible sponsored reels
+  let mixedData = formattedReels;
+  if (!filters.creatorId) {
+    const sponsoredAds = await findEligibleSponsoredAdvertisements({
+      targetType: 'REEL',
+      limit: 10,
+    });
+    const formattedSponsored = sponsoredAds
+      .filter((ad) => ad.reel && (ad.reel.visibilityState === 'PUBLISHED' || ad.reel.status === 'PUBLISHED') && !ad.reel.deletedAt)
+      .map((ad) => ({
+        ...formatReel(ad.reel),
+        isSponsored: true,
+        advertisementId: ad.id,
+      }));
+    mixedData = mixReelsFeed(formattedReels, formattedSponsored);
+  }
 
   if (queryParams.cursor) {
     return {
-      data: result.reels.map(formatReel),
+      data: mixedData,
       meta: {
         cursor: queryParams.cursor,
         nextCursor: result.nextCursor,
@@ -192,7 +214,7 @@ export const listReels = async (queryParams, userId = null) => {
 
   const { page, limit } = queryParams;
   return {
-    data: result.reels.map(formatReel),
+    data: mixedData,
     meta: {
       page,
       limit,
@@ -340,7 +362,9 @@ export const confirmUpload = async (reelId, mediaData, requestorCreatorId) => {
 export const likeReel = async (reelId, userId) => {
   const reel = await repo.findReelById(reelId);
   if (!reel) throw new NotFoundError('Reel not found');
+  const existing = await prisma.reelLike.findUnique({ where: { userId_reelId: { userId, reelId } } });
   await repo.likeReel(userId, reelId);
+  if (!existing) await createNotificationIfEnabled({ userId: reel.creatorId, actorId: userId, type: 'REEL_LIKED', title: 'Reel liked', message: 'Someone liked your Reel.', data: { reelId } });
   return { message: 'Reel liked successfully', reelId };
 };
 
@@ -372,7 +396,9 @@ export const unsaveReel = async (reelId, userId) => {
 export const addComment = async (reelId, userId, text) => {
   const reel = await repo.findReelById(reelId);
   if (!reel) throw new NotFoundError('Reel not found');
-  return repo.createComment(userId, reelId, text);
+  const comment = await repo.createComment(userId, reelId, text);
+  await createNotificationIfEnabled({ userId: reel.creatorId, actorId: userId, type: 'REEL_COMMENTED', title: 'New Reel comment', message: 'Someone commented on your Reel.', data: { reelId, commentId: comment.id } });
+  return comment;
 };
 
 export const getComments = async (reelId, query) => {

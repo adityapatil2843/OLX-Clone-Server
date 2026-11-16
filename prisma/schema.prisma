@@ -54,8 +54,15 @@ enum AdTargetType {
 enum AdStatus {
   ACTIVE
   PAUSED
-  STOPPED
+  CANCELLED
   COMPLETED
+}
+
+enum CoinTransactionType {
+  WELCOME_BONUS
+  BOOST_SPENT
+  PURCHASE
+  REFUND
 }
 
 enum MessageType {
@@ -77,6 +84,16 @@ enum ReportStatus {
   DISMISSED
 }
 
+enum NotificationType {
+  NEW_MESSAGE
+  LISTING_APPROVED
+  LISTING_REJECTED
+  LISTING_SOLD
+  REEL_LIKED
+  REEL_COMMENTED
+  REPORT_RESOLVED
+}
+
 // ────────────────────────────────────────────────────────────
 // User & Profile Module
 // ────────────────────────────────────────────────────────────
@@ -95,6 +112,7 @@ model User {
   isVerifiedSeller Boolean   @default(false)
   isActive         Boolean   @default(true)
   deletedAt        DateTime?
+  coinsBalance     Int       @default(0)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -111,6 +129,9 @@ model User {
   reportsFiled   Report[]
   auditLogs      AdminAuditLog[]
   mediaAssets    MediaAsset[]
+  notifications  Notification[]
+  notificationPreference NotificationPreference?
+  coinTransactions CoinTransaction[]
 
   @@index([phone])
   @@index([email])
@@ -354,6 +375,42 @@ model SavedReel {
 }
 
 // ────────────────────────────────────────────────────────────
+// Coin Ledger & Boost Packages Module
+// ────────────────────────────────────────────────────────────
+
+model CoinTransaction {
+  id             String              @id @default(uuid())
+  userId         String
+  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount         Int
+  balanceAfter   Int
+  type           CoinTransactionType
+  reason         String?
+  referenceType  String?
+  referenceId    String?
+  idempotencyKey String?             @unique
+  createdAt      DateTime            @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([referenceType, referenceId])
+}
+
+model BoostPackage {
+  id           String          @id @default(uuid())
+  name         String
+  durationDays Int
+  coinsCost    Int
+  isActive     Boolean         @default(true)
+  sortOrder    Int             @default(0)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  advertisements Advertisement[]
+
+  @@index([isActive, sortOrder])
+}
+
+// ────────────────────────────────────────────────────────────
 // Advertisements & Sponsored Content
 // ────────────────────────────────────────────────────────────
 
@@ -363,9 +420,15 @@ model Advertisement {
   owner      User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   targetType AdTargetType
   targetId   String
-  title      String
+  title      String       @default("Boost Campaign")
   budget     Decimal?     @db.Decimal(10, 2)
   status     AdStatus     @default(ACTIVE)
+
+  packageId   String?
+  package     BoostPackage? @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  packageDays Int?
+  coinsSpent  Int?
+
   startDate  DateTime     @default(now())
   endDate    DateTime?
   stoppedAt  DateTime?
@@ -381,6 +444,8 @@ model Advertisement {
   @@index([ownerId, status])
   @@index([targetType, targetId, status])
   @@index([listingId, status])
+  @@index([packageId])
+  @@index([status, endDate])
 }
 
 // ────────────────────────────────────────────────────────────
@@ -469,4 +534,34 @@ model AdminAuditLog {
 
   @@index([adminId, createdAt(sort: Desc)])
   @@index([targetType, targetId])
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  message   String
+  data      Json?
+  isRead    Boolean          @default(false)
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, isRead, createdAt(sort: Desc)])
+  @@index([type, createdAt])
+}
+
+model NotificationPreference {
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  newMessage        Boolean  @default(true)
+  listingUpdates    Boolean  @default(true)
+  reelActivity      Boolean  @default(true)
+  moderationUpdates Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }

@@ -258,6 +258,13 @@ test('Flow C — Reel Discovery, Cursor Pagination, Like & Save, and Linked List
         where: { id: reelId },
         data: { visibilityState: 'PUBLISHED' },
       });
+      const createdReel = await prisma.reel.findUnique({ where: { id: reelId } });
+      if (createdReel?.mediaAssetId) {
+        await prisma.mediaAsset.update({
+          where: { id: createdReel.mediaAssetId },
+          data: { processingState: 'READY' },
+        });
+      }
     } catch {
       await prisma.$executeRawUnsafe(
         'UPDATE "Reel" SET status = \'PUBLISHED\' WHERE id = $1',
@@ -422,7 +429,7 @@ test('Flow E — Sold Listing Automatically Stops Dependent Advertising Campaign
 
   try {
     seller = await prisma.user.create({
-      data: { name: 'Seller E', email: `seller-${suffix}@example.com`, passwordHash: 'hash' },
+      data: { name: 'Seller E', email: `seller-${suffix}@example.com`, passwordHash: 'hash', coinsBalance: 500 },
     });
     category = await prisma.category.create({
       data: { name: `Ad Cat ${suffix}`, slug: `ad-cat-${suffix}` },
@@ -442,8 +449,8 @@ test('Flow E — Sold Listing Automatically Stops Dependent Advertising Campaign
       Authorization: `Bearer ${generateToken(seller)}`,
     };
 
-    // 1. Create an active advertising campaign for this listing
-    const adRes = await fetch(`${baseUrl}/advertisements`, {
+    // 1. Verify old arbitrary budget payload is strictly rejected
+    const badBudgetRes = await fetch(`${baseUrl}/advertisements`, {
       method: 'POST',
       headers: sellerHeaders,
       body: JSON.stringify({
@@ -453,12 +460,27 @@ test('Flow E — Sold Listing Automatically Stops Dependent Advertising Campaign
         budget: 5000,
       }),
     });
+    assert.equal(badBudgetRes.status, 422, 'Arbitrary budget payload must be rejected with 422');
+
+    // 2. Create active boost using valid packageId
+    const pkg = await prisma.boostPackage.findFirst({ where: { isActive: true } });
+    assert.ok(pkg, 'Boost package must exist');
+
+    const adRes = await fetch(`${baseUrl}/advertisements`, {
+      method: 'POST',
+      headers: sellerHeaders,
+      body: JSON.stringify({
+        targetType: 'LISTING',
+        targetId: listing.id,
+        packageId: pkg.id,
+      }),
+    });
     assert.equal(adRes.status, 201);
     const adJson = await adRes.json();
     campaign = adJson.data;
     assert.equal(campaign.status, 'ACTIVE');
 
-    // 2. Mark the listing as SOLD
+    // 3. Mark the listing as SOLD
     const soldRes = await fetch(`${baseUrl}/listings/${listing.id}/status`, {
       method: 'PATCH',
       headers: sellerHeaders,
@@ -468,21 +490,23 @@ test('Flow E — Sold Listing Automatically Stops Dependent Advertising Campaign
     const soldJson = await soldRes.json();
     assert.equal(soldJson.data.status, 'SOLD');
 
-    // 3. Verify dependent campaign is automatically STOPPED
+    // 4. Verify dependent campaign is automatically CANCELLED
     const getAdRes = await fetch(`${baseUrl}/advertisements/${campaign.id}`, {
       headers: sellerHeaders,
     });
     assert.equal(getAdRes.status, 200);
     const getAdJson = await getAdRes.json();
-    assert.equal(getAdJson.data.status, 'STOPPED');
+    assert.equal(getAdJson.data.status, 'CANCELLED');
     assert.ok(getAdJson.data.stoppedAt);
 
-    // 4. Verify stop operation is idempotent (calling stop again returns 200 without error)
+    // 5. Verify stop operation is idempotent (calling stop again returns 200 with status CANCELLED)
     const repeatStopRes = await fetch(`${baseUrl}/advertisements/${campaign.id}/stop`, {
       method: 'POST',
       headers: sellerHeaders,
     });
     assert.equal(repeatStopRes.status, 200);
+    const repeatStopJson = await repeatStopRes.json();
+    assert.equal(repeatStopJson.data.status, 'CANCELLED');
 
     // 5. Verify sold listing is no longer presented in public active listings
     const publicListRes = await fetch(`${baseUrl}/listings?categoryId=${category.id}`);

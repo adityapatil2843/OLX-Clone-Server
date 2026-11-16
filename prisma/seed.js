@@ -227,6 +227,34 @@ async function main() {
     }
   }
 
+  console.log('Seeding initial BoostPackages...');
+  const defaultPackages = [
+    { id: 'b0057001-0000-4000-8000-000000000001', name: '1 Day Boost', durationDays: 1, coinsCost: 50, sortOrder: 1 },
+    { id: 'b0057002-0000-4000-8000-000000000002', name: '3 Days Boost', durationDays: 3, coinsCost: 120, sortOrder: 2 },
+    { id: 'b0057003-0000-4000-8000-000000000003', name: '7 Days Boost', durationDays: 7, coinsCost: 200, sortOrder: 3 },
+  ];
+
+  for (const pkg of defaultPackages) {
+    await prisma.boostPackage.upsert({
+      where: { id: pkg.id },
+      update: {
+        name: pkg.name,
+        durationDays: pkg.durationDays,
+        coinsCost: pkg.coinsCost,
+        isActive: true,
+        sortOrder: pkg.sortOrder,
+      },
+      create: {
+        id: pkg.id,
+        name: pkg.name,
+        durationDays: pkg.durationDays,
+        coinsCost: pkg.coinsCost,
+        isActive: true,
+        sortOrder: pkg.sortOrder,
+      },
+    });
+  }
+
   console.log('✅ Seed completed successfully.');
 }
 

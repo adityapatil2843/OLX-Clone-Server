@@ -64,7 +64,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(httpLogger);
 
 // ── Rate Limiting for API routes (TEMPORARILY DISABLED FOR K6 LOAD TESTING) ──
-// app.use('/api/', apiLimiter);
+app.use('/api/', apiLimiter);
 
 // ── Health Checks ─────────────────────────────────────────────
 

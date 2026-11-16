@@ -1,9 +1,14 @@
 import { z } from 'zod';
 import { USER_PAGINATION } from './users.constants.js';
 
-export const userIdParamSchema = z.object({
-  userId: z.string().uuid('User ID must be a valid UUID'),
-});
+export const userIdParamSchema = z
+  .object({
+    userId: z.string().uuid('User ID must be a valid UUID').optional(),
+    id: z.string().uuid('User ID must be a valid UUID').optional(),
+  })
+  .refine((data) => Boolean(data.userId || data.id), {
+    message: 'User ID must be a valid UUID',
+  });
 
 export const updateProfileSchema = z
   .object({

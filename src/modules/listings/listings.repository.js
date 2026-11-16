@@ -200,7 +200,7 @@ export const listPublicListings = async ({
   }
 
   const total = filtered.length;
-  const paginatedListings = filtered.slice(skip, skip + safeLimit);
+  const paginatedListings = filtered.slice(skip, skip + take);
 
   return { listings: paginatedListings, total };
 };

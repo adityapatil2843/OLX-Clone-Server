@@ -144,6 +144,27 @@ export const handleCloudinaryWebhook = async (req, res) => {
     });
   }
 
+  // 5b. Authoritative duration enforcement (120 seconds / 2 minutes limit)
+  const MAX_DURATION_SECONDS = 120;
+  if (duration && Number(duration) > MAX_DURATION_SECONDS) {
+    logger.error('[Cloudinary Webhook] Uploaded video exceeds authoritative 120 seconds limit', {
+      public_id,
+      duration,
+      limit: MAX_DURATION_SECONDS,
+    });
+
+    const parsedReelId = context?.custom?.reelId || public_id?.split('/').pop();
+    const parsedUploadToken = context?.custom?.uploadToken;
+    if (parsedReelId) {
+      await repo.markMediaAssetFailed(parsedReelId, parsedUploadToken);
+    }
+
+    return res.status(400).json({
+      success: false,
+      message: `Uploaded video exceeds 2 minutes limit (${duration} seconds)`,
+    });
+  }
+
   // 6. Extract server-generated metadata association
   let reelId = context?.custom?.reelId;
   let uploadToken = context?.custom?.uploadToken;

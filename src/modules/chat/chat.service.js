@@ -6,6 +6,7 @@ import {
   NotFoundError,
 } from '../../utils/errors.js';
 import { uploadBufferToCloudinary } from '../../integrations/storage/cloudinary.service.js';
+import { createNotificationIfEnabled } from '../notifications/notifications.service.js';
 
 export const getOrCreateConversation = async ({ recipientId, listingId = null }, userId) => {
   if (recipientId === userId) {
@@ -92,12 +93,25 @@ export const sendMessage = async (conversationId, userId, payload) => {
     throw new ForbiddenError('You are not a participant in this conversation');
   }
 
-  return repo.createMessage({
+  const message = await repo.createMessage({
     conversationId,
     senderId: userId,
     content: payload.content,
     type: payload.type,
   });
+  const recipients = await prisma.conversationParticipant.findMany({
+    where: { conversationId, userId: { not: userId } },
+    select: { userId: true },
+  });
+  await Promise.all(recipients.map(({ userId: recipientId }) => createNotificationIfEnabled({
+    userId: recipientId,
+    actorId: userId,
+    type: 'NEW_MESSAGE',
+    title: 'New message',
+    message: 'You received a new message.',
+    data: { conversationId, messageId: message.id },
+  })));
+  return message;
 };
 
 export const uploadImage = async (conversationId, userId, file) => {

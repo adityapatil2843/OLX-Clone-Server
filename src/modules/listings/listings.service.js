@@ -4,6 +4,9 @@ import { generateListingUploadSignature, getListingMediaDeliveryUrl, uploadBuffe
 import * as repo from './listings.repository.js';
 import { validateCategoryAttributes } from '../categories/categories.service.js';
 import { stopListingAdvertisements } from '../advertisements/advertisements.service.js';
+import { findEligibleSponsoredAdvertisements } from '../advertisements/advertisements.repository.js';
+import { mixListingsFeed } from '../advertisements/advertisements.mixer.js';
+import { createNotificationIfEnabled } from '../notifications/notifications.service.js';
 import { LISTING_STATUS } from './listings.constants.js';
 
 const withWishlistState = (listing) => {
@@ -163,6 +166,7 @@ export const updateListing = async (id, payload, ownerId, userRole = 'USER') => 
   }
 
   const updated = await repo.updateListing(id, payload);
+  if (payload.status === LISTING_STATUS.SOLD) await createNotificationIfEnabled({ userId: updated.ownerId, actorId: ownerId, type: 'LISTING_SOLD', title: 'Listing sold', message: 'Your listing was marked as sold.', data: { listingId: id } });
 
   // If status is changed to SOLD or ARCHIVED, stop dependent advertising campaigns
   if (payload.status === LISTING_STATUS.SOLD || payload.status === LISTING_STATUS.ARCHIVED) {
@@ -177,6 +181,7 @@ export const updateListingStatus = async (id, status, ownerId, userRole = 'USER'
   if (!listing && userRole !== 'ADMIN') throw new NotFoundError('Listing not found');
 
   const updated = await repo.updateListingStatus(id, status);
+  if (status === LISTING_STATUS.SOLD) await createNotificationIfEnabled({ userId: updated.ownerId, actorId: ownerId, type: 'LISTING_SOLD', title: 'Listing sold', message: 'Your listing was marked as sold.', data: { listingId: id } });
 
   // Flow E: When marked sold, automatically stop dependent advertising campaigns
   if (status === LISTING_STATUS.SOLD || status === LISTING_STATUS.ARCHIVED) {
@@ -195,7 +200,24 @@ export const deleteListing = async (id, ownerId, userRole = 'USER') => {
 
 export const getPublicListings = async (query, userId) => {
   const result = await repo.listPublicListings({ ...query, userId });
-  return withPagination(result.listings, result.total, query.page, query.limit);
+  const paginated = withPagination(result.listings, result.total, query.page, query.limit);
+
+  // Fetch eligible sponsored listings for active campaigns
+  const sponsoredAds = await findEligibleSponsoredAdvertisements({
+    targetType: 'LISTING',
+    limit: 10,
+  });
+
+  const formattedSponsored = sponsoredAds
+    .filter((ad) => ad.listing && ad.listing.status === 'ACTIVE' && !ad.listing.deletedAt)
+    .map((ad) => ({
+      ...withWishlistState(ad.listing),
+      isSponsored: true,
+      advertisementId: ad.id,
+    }));
+
+  paginated.data = mixListingsFeed(paginated.data, formattedSponsored);
+  return paginated;
 };
 
 export const getPublicListing = async (id, userId) => {

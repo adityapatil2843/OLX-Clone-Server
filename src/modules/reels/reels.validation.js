@@ -28,7 +28,13 @@ export const createReelSchema = z.object({
   videoStorageKey: z.string().max(500).optional().nullable(),
   thumbnailStorageKey: z.string().max(500).optional().nullable(),
   videoProvider: z.string().max(50).optional().nullable(),
-  durationMs: z.number().int().positive().optional().nullable(),
+  durationMs: z
+    .number()
+    .int()
+    .positive()
+    .max(120 * 1000, 'Video duration cannot exceed 2 minutes (120 seconds)')
+    .optional()
+    .nullable(),
   width: z.number().int().positive().optional().nullable(),
   height: z.number().int().positive().optional().nullable(),
 });
@@ -101,7 +107,13 @@ export const confirmUploadSchema = z.object({
   fileType: z.string().optional(),
   sizeBytes: z.number().int().positive().optional(),
   fileSizeBytes: z.number().int().positive().optional(),
-  durationMs: z.number().int().positive().optional().nullable(),
+  durationMs: z
+    .number()
+    .int()
+    .positive()
+    .max(120 * 1000, 'Video duration cannot exceed 2 minutes (120 seconds)')
+    .optional()
+    .nullable(),
   width: z.number().int().positive().optional().nullable(),
   height: z.number().int().positive().optional().nullable(),
 });

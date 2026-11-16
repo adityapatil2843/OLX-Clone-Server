@@ -11,6 +11,7 @@ import {
 } from '../../utils/errors.js';
 import { AUTH_MESSAGES, OTP_PURPOSES } from './auth.constants.js';
 import { sendOtpEmail } from '../../integrations/mail/email.service.js';
+import { WELCOME_BONUS_COINS, COIN_TRANSACTION_TYPE } from '../wallet/wallet.constants.js';
 
 /**
  * Strips sensitive fields like passwordHash from user object before returning.
@@ -110,14 +111,21 @@ export const register = async ({
 
   const passwordHash = await bcrypt.hash(password, env.BCRYPT_SALT_ROUNDS);
 
-  const user = await repo.createUser({
-    name,
-    email,
-    phone,
-    passwordHash,
-    locationCity,
-    locationState,
-  });
+  const user = await repo.createUserWithWelcomeLedger(
+    {
+      name,
+      email,
+      phone,
+      passwordHash,
+      locationCity,
+      locationState,
+    },
+    {
+      amount: WELCOME_BONUS_COINS,
+      type: COIN_TRANSACTION_TYPE.WELCOME_BONUS,
+      reason: 'Welcome bonus',
+    }
+  );
 
   const tokens = await generateTokenPair(user);
 

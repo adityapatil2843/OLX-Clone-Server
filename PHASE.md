@@ -13,9 +13,9 @@ Statuses: `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `IMPLEMENTED_UNVERIFIED`, `VE
 | Video processing | NOT_STARTED | Status fields and upload/confirm endpoints exist | Decide transcoding, thumbnails, queue, retry, and CDN architecture |
 | Search/location | NOT_STARTED | Listing location fields/indexes exist | Implement and test keyword/filter/pagination behavior |
 | Chat | IMPLEMENTED_UNVERIFIED | conversation/message schema and chat module | Verify persistence, participant authorization, and realtime transport |
-| Notifications | NOT_STARTED | No notification model/module found | Define essential records and delivery mechanism |
+| Notifications | IMPLEMENTED_UNVERIFIED | Notification models, preferences, APIs, and service integrations added | Run DB migration and notification integration tests |
 | Moderation/admin | IMPLEMENTED_UNVERIFIED | reports/admin modules, roles, audit model | Verify privilege boundaries, blocks, transitions, and audit coverage |
-| Advertisements | IMPLEMENTED_UNVERIFIED | advertisement model/module | Confirm product scope and authorization/business rules |
+| Advertisements | VERIFIED | Wallet-based boost system, 200 coin welcome bonus, CoinTransaction ledger, BoostPackages, atomic debit/creation, feed mixer, expiry job, verified in `tests/boost-system.test.js` & `tests/marketplace-flows.test.js`. One-time idempotent row-locked welcome bonus backfill implemented in `scripts/backfill-welcome-coins.js` and verified in `tests/wallet-backfill.test.js` (5/5 passed). Mobile wallet balance and boost UI integration verified in `mobile/tests/wallet-boost.test.tsx` (8/8 passed). | Performance monitoring for sponsored feed mixing under heavy load |
 | Deployment/operations | IN_PROGRESS | startup, logging, rate limit, health endpoints | Add CI/CD, backup/restore, alerts, security and smoke verification |
 
 Statuses intentionally separate code presence from end-to-end verification. Update the evidence and next action after every meaningful task; do not use completion percentages.

@@ -1,0 +1,13 @@
+export const COIN_TRANSACTION_TYPE = Object.freeze({
+  WELCOME_BONUS: 'WELCOME_BONUS',
+  BOOST_SPENT: 'BOOST_SPENT',
+  PURCHASE: 'PURCHASE',
+  REFUND: 'REFUND',
+});
+
+export const WELCOME_BONUS_COINS = 200;
+
+export const WALLET_PAGINATION = Object.freeze({
+  DEFAULT_LIMIT: 20,
+  MAX_LIMIT: 100,
+});

@@ -39,4 +39,12 @@ router.patch(
   controller.updateProfile
 );
 
+// DELETE /api/v1/users/:id - soft delete user account (ownership enforced or ADMIN)
+router.delete(
+  '/:id',
+  authenticate,
+  validate({ params: userIdParamSchema }),
+  controller.deleteUser
+);
+
 export default router;

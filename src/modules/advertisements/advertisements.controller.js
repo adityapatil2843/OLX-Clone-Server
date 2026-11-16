@@ -28,9 +28,27 @@ export const listMyAdvertisements = async (req, res, next) => {
   }
 };
 
+export const cancelAdvertisement = async (req, res, next) => {
+  try {
+    const ad = await service.cancelAdvertisement(req.params.id, req.user.id, req.user.role);
+    successResponse(res, ad);
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const stopAdvertisement = async (req, res, next) => {
   try {
     const ad = await service.stopAdvertisement(req.params.id, req.user.id, req.user.role);
+    successResponse(res, ad);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const pauseAdvertisement = async (req, res, next) => {
+  try {
+    const ad = await service.pauseAdvertisement(req.params.id, req.user.id, req.user.role);
     successResponse(res, ad);
   } catch (err) {
     next(err);
