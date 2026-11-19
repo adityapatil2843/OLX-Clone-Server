@@ -48,6 +48,30 @@ const envSchema = z.object({
     .pipe(z.number().int().min(4).max(16)),
   EMAIL_USER: z.string().optional(),
   EMAIL_PASS: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (data.NODE_ENV === 'production') {
+    if (data.JWT_ACCESS_SECRET.includes('dev-super-secret') || data.JWT_ACCESS_SECRET.length < 32) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['JWT_ACCESS_SECRET'],
+        message: 'JWT_ACCESS_SECRET must be a secure, non-default string of at least 32 characters in production',
+      });
+    }
+    if (data.JWT_REFRESH_SECRET.includes('dev-super-secret') || data.JWT_REFRESH_SECRET.length < 32) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['JWT_REFRESH_SECRET'],
+        message: 'JWT_REFRESH_SECRET must be a secure, non-default string of at least 32 characters in production',
+      });
+    }
+    if (data.CORS_ORIGIN === '*') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['CORS_ORIGIN'],
+        message: 'CORS_ORIGIN cannot be wildcard (*) in production when credentials are supported',
+      });
+    }
+  }
 });
 
 const parseEnv = () => {
@@ -65,4 +89,5 @@ const parseEnv = () => {
 };
 
 export const env = parseEnv();
+export { envSchema };
 export default env;

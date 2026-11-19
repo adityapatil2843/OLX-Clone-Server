@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
+import jwt from 'jsonwebtoken';
 import app from '../src/app.js';
 import { prisma } from '../src/db/prisma.js';
+import { env } from '../src/config/env.js';
 
 test('Auth Module — Registration, Login, Token Rotation, Logout & Me', async () => {
   const server = app.listen(0);
@@ -158,6 +161,112 @@ test('Auth Module — Registration, Login, Token Rotation, Logout & Me', async (
     if (registeredUserId) {
       await prisma.refreshToken.deleteMany({ where: { userId: registeredUserId } });
       await prisma.user.deleteMany({ where: { id: registeredUserId } });
+    }
+    server.close();
+  }
+});
+
+test('Auth Lifecycle - Expired Access Token, Refresh Flow & Expiry Rejections', async () => {
+  const server = app.listen(0);
+  const { port } = server.address();
+  const baseUrl = `http://127.0.0.1:${port}/api/v1/auth`;
+
+  const uniqueSuffix = Date.now();
+  const testEmail = `lifecycle-test-${uniqueSuffix}@example.com`;
+  const testPassword = 'Password123!';
+
+  let userId = null;
+
+  try {
+    // 1. Register user to establish active session and refresh token
+    const regRes = await fetch(`${baseUrl}/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Lifecycle User',
+        email: testEmail,
+        password: testPassword,
+      }),
+    });
+    assert.equal(regRes.status, 201);
+    const regJson = await regRes.json();
+    userId = regJson.data.user.id;
+    const initialRefreshToken = regJson.data.tokens.refreshToken;
+
+    // 2. Generate an expired access token (expired 10 seconds ago)
+    const expiredAccessToken = jwt.sign(
+      { sub: userId, role: 'USER', email: testEmail },
+      env.JWT_ACCESS_SECRET,
+      { expiresIn: '-10s' }
+    );
+
+    // 3. Expired access token accessing protected /me returns 401
+    const expiredMeRes = await fetch(`${baseUrl}/me`, {
+      headers: { Authorization: `Bearer ${expiredAccessToken}` },
+    });
+    assert.equal(expiredMeRes.status, 401);
+    const expiredMeJson = await expiredMeRes.json();
+    assert.equal(expiredMeJson.success, false);
+    assert.match(expiredMeJson.error.message, /expired/i);
+
+    // 4. Valid refresh token rotates token pair
+    const refreshRes = await fetch(`${baseUrl}/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: initialRefreshToken }),
+    });
+    assert.equal(refreshRes.status, 200);
+    const refreshJson = await refreshRes.json();
+    assert.equal(refreshJson.success, true);
+    assert.ok(refreshJson.data.tokens.accessToken);
+    assert.ok(refreshJson.data.tokens.refreshToken);
+    assert.notEqual(refreshJson.data.tokens.refreshToken, initialRefreshToken);
+
+    const newAccessToken = refreshJson.data.tokens.accessToken;
+
+    // 5. New access token successfully accesses /auth/me
+    const retryMeRes = await fetch(`${baseUrl}/me`, {
+      headers: { Authorization: `Bearer ${newAccessToken}` },
+    });
+    assert.equal(retryMeRes.status, 200);
+    const retryMeJson = await retryMeRes.json();
+    assert.equal(retryMeJson.success, true);
+    assert.equal(retryMeJson.data.id, userId);
+    assert.equal(retryMeJson.data.email, testEmail);
+
+    // 6. Expired refresh token rejection (JWT expired & past DB expiresAt)
+    const expiredRefreshToken = jwt.sign(
+      { sub: userId, type: 'refresh', jti: crypto.randomUUID() },
+      env.JWT_REFRESH_SECRET,
+      { expiresIn: '-10s' }
+    );
+    await prisma.refreshToken.create({
+      data: {
+        userId,
+        token: expiredRefreshToken,
+        expiresAt: new Date(Date.now() - 10000),
+      },
+    });
+
+    const expRefreshRes = await fetch(`${baseUrl}/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: expiredRefreshToken }),
+    });
+    assert.equal(expRefreshRes.status, 401);
+
+    // 7. Missing refresh token returns 422 Unprocessable Entity (validation error)
+    const missingRefreshRes = await fetch(`${baseUrl}/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    assert.equal(missingRefreshRes.status, 422);
+
+  } finally {
+    if (userId) {
+      await prisma.refreshToken.deleteMany({ where: { userId } });
+      await prisma.user.deleteMany({ where: { id: userId } });
     }
     server.close();
   }

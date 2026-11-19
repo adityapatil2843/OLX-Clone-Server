@@ -125,6 +125,18 @@ export const confirmUpload = async (req, res, next) => {
   }
 };
 
+// ── POST /api/v1/reels/:reelId/cancel-upload ───────────────────
+
+export const cancelUpload = async (req, res, next) => {
+  try {
+    const { reelId } = parseOrThrow(reelIdParamSchema, req.params);
+    const result = await service.cancelDraftReel(reelId, req.creatorId);
+    ok(res, result);
+  } catch (err) {
+    next(err);
+  }
+};
+
 // ── Engagement Handlers ────────────────────────────────────────
 
 export const likeReel = async (req, res, next) => {

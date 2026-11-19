@@ -10,7 +10,7 @@ import * as repo from './reels.repository.js';
 import { findEligibleSponsoredAdvertisements } from '../advertisements/advertisements.repository.js';
 import { mixReelsFeed } from '../advertisements/advertisements.mixer.js';
 import { createNotificationIfEnabled } from '../notifications/notifications.service.js';
-import { generateUploadSignature, getSignedDeliveryUrl, optimizeCloudinaryUrl } from '../../integrations/storage/cloudinary.service.js';
+import { generateUploadSignature, getSignedDeliveryUrl, optimizeCloudinaryUrl, deleteFromStorage } from '../../integrations/storage/cloudinary.service.js';
 import { REEL_STATUS, REEL_VISIBILITY_STATE, REEL_UPDATABLE_FIELDS } from './reels.constants.js';
 import { ApiError, NotFoundError, ForbiddenError, ConflictError } from '../../utils/errors.js';
 
@@ -355,6 +355,74 @@ export const confirmUpload = async (reelId, mediaData, requestorCreatorId) => {
 
   const updated = await repo.updateProvisionalMediaMetadata(reelId, mediaData);
   return formatReel(updated);
+};
+
+// ── Cancel / Discard Draft Reel & Temporary Upload ─────────────
+
+export const cancelDraftReel = async (reelId, requestorCreatorId) => {
+  const existing = await repo.findReelById(reelId);
+  if (!existing) {
+    throw new NotFoundError(`Reel ${reelId} not found`);
+  }
+  if (existing.creatorId !== requestorCreatorId) {
+    throw new ForbiddenError('You do not own this Reel');
+  }
+
+  const isDraft =
+    existing.visibilityState === REEL_VISIBILITY_STATE.DRAFT ||
+    existing.status === REEL_STATUS.DRAFT;
+
+  if (!isDraft) {
+    throw new ConflictError('Only draft reels can be cancelled');
+  }
+
+  // If a temporary video was already uploaded, delete from storage
+  const storageKey =
+    existing.mediaAsset?.storageKey ||
+    existing.videoStorageKey ||
+    (existing.mediaAssetId ? `reels/${requestorCreatorId}/${reelId}` : null);
+
+  if (storageKey && !storageKey.startsWith('http')) {
+    try {
+      await deleteFromStorage(storageKey);
+    } catch {
+      // Continue cleanup if delete from storage encounters an error
+    }
+  }
+
+  await repo.deleteDraftReel(reelId);
+  return { message: 'Draft reel and associated upload cancelled successfully', reelId };
+};
+
+// ── Abandoned Drafts TTL Cleanup ────────────────────────────────
+
+export const cleanupAbandonedDrafts = async (ttlHours = 24, referenceDate = new Date()) => {
+  const cutoffDate = new Date(referenceDate.getTime() - ttlHours * 60 * 60 * 1000);
+  const abandonedDrafts = await repo.findAbandonedDrafts(cutoffDate);
+
+  let cleanedCount = 0;
+  const cleanedReelIds = [];
+
+  for (const draft of abandonedDrafts) {
+    const storageKey =
+      draft.mediaAsset?.storageKey ||
+      draft.videoStorageKey ||
+      (draft.mediaAssetId ? `reels/${draft.creatorId}/${draft.id}` : null);
+
+    if (storageKey && !storageKey.startsWith('http')) {
+      try {
+        await deleteFromStorage(storageKey);
+      } catch {
+        // Continue cleanup
+      }
+    }
+
+    await repo.deleteDraftReel(draft.id);
+    cleanedCount++;
+    cleanedReelIds.push(draft.id);
+  }
+
+  return { cleanedCount, cleanedReelIds };
 };
 
 // ── Engagement: Likes ──────────────────────────────────────────

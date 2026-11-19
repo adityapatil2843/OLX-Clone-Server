@@ -214,5 +214,8 @@ export const createMedia = (listingId, data) =>
 export const findMediaById = (listingId, mediaId) =>
   prisma.listingMedia.findFirst({ where: { id: mediaId, listingId } });
 
+export const findMediaByStorageKey = (listingId, storageKey) =>
+  prisma.listingMedia.findFirst({ where: { listingId, storageKey } });
+
 export const deleteMedia = (mediaId) =>
   prisma.listingMedia.delete({ where: { id: mediaId } });

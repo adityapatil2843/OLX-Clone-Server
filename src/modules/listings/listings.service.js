@@ -245,6 +245,12 @@ export const attachMedia = async (listingId, ownerId, data) => {
     throw new ForbiddenError('Cannot add media to an archived listing');
   }
 
+  // Idempotency check: if already attached with this storageKey, return existing record
+  const existingMedia = await repo.findMediaByStorageKey(listingId, data.storageKey);
+  if (existingMedia) {
+    return existingMedia;
+  }
+
   const count = await repo.countMedia(listingId);
   if (count >= 12) {
     throw new BadRequestError('Maximum 12 media assets allowed per listing');

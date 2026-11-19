@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test tests/marketplace-flows.test.js",
+    "test:readiness": "node --test tests/production-readiness.test.js",
     "test:reels": "node --test tests/reels.test.js",
     "test:webhook": "node --test tests/webhook.test.js",
     "test:all": "node --test tests/*.test.js",

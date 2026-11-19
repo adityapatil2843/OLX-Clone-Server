@@ -23,6 +23,7 @@ router.delete('/:reelId', authenticate, controller.deleteReel);
 
 router.post('/:reelId/upload-url', authenticate, controller.requestUploadUrl);
 router.post('/:reelId/confirm-upload', authenticate, controller.confirmUpload);
+router.post('/:reelId/cancel-upload', authenticate, controller.cancelUpload);
 
 // ── Engagement: Likes & Saves ──────────────────────────────────
 

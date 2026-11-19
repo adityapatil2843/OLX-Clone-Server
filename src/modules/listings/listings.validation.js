@@ -96,10 +96,20 @@ export const uploadSignatureSchema = z.object({
   fileSizeBytes: z.coerce.number().int().positive().max(500 * 1024 * 1024),
 }).superRefine((data, ctx) => {
   const allowed = data.type === LISTING_MEDIA_TYPE.IMAGE
-    ? ['image/jpeg', 'image/png', 'image/webp']
+    ? ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
     : ['video/mp4', 'video/quicktime', 'video/webm'];
   if (!allowed.includes(data.fileType)) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['fileType'], message: `Unsupported ${data.type.toLowerCase()} type` });
+  }
+
+  // Max 25 MB for images, 500 MB for video
+  const maxBytes = data.type === LISTING_MEDIA_TYPE.IMAGE ? 25 * 1024 * 1024 : 500 * 1024 * 1024;
+  if (data.fileSizeBytes > maxBytes) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['fileSizeBytes'],
+      message: `File size exceeds maximum allowed of ${Math.round(maxBytes / (1024 * 1024))} MB for ${data.type.toLowerCase()}`,
+    });
   }
 });
 

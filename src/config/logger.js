@@ -29,6 +29,15 @@ export const logger = pino({
       'req.body.password',
       'req.body.token',
       'req.body.secret',
+      'req.body.refreshToken',
+      'req.body.accessToken',
+      'req.body.newPassword',
+      'req.body.otp',
+      'req.body.content',
+      'req.body.text',
+      'req.body.phone',
+      'req.body.contactPhone',
+      'req.headers["x-refresh-token"]',
       'DATABASE_URL',
       'DIRECT_URL',
       'CLOUDINARY_API_SECRET',
@@ -41,9 +50,25 @@ export const logger = pino({
 export const httpLogger = pinoHttp({
   logger,
   genReqId: (req) => req.headers['x-request-id'] || crypto.randomUUID(),
+  serializers: {
+    req: (req) => {
+      const isAuth = req.url && req.url.includes('/auth');
+      return {
+        id: req.id,
+        method: req.method,
+        url: req.url,
+        // Never log request bodies for authentication endpoints
+        ...(isAuth ? {} : { body: req.raw?.body }),
+      };
+    },
+    res: (res) => ({
+      statusCode: res.statusCode,
+    }),
+  },
   customLogLevel: (_req, res, err) => {
     if (res.statusCode >= 500 || err) return 'error';
     if (res.statusCode >= 400) return 'warn';
+    if (res.responseTime && res.responseTime > 1000) return 'warn';
     return 'info';
   },
   customSuccessMessage: (req, res) =>

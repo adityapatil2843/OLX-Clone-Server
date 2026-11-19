@@ -895,6 +895,70 @@ export const softDeleteReel = async (reelId) => {
   }
 };
 
+// ── Delete / Discard draft reel ──────────────────────────────
+
+export const deleteDraftReel = async (reelId) => {
+  if (mocks.deleteDraftReel) return mocks.deleteDraftReel(reelId);
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const reel = await tx.reel.findUnique({
+        where: { id: reelId },
+        select: { id: true, mediaAssetId: true },
+      });
+      if (!reel) return null;
+
+      // Clean up product tags if any
+      await tx.reelProductTag.deleteMany({ where: { reelId } }).catch(() => null);
+
+      // Delete reel
+      await tx.reel.delete({ where: { id: reelId } });
+
+      // Delete linked mediaAsset if present
+      if (reel.mediaAssetId) {
+        await tx.mediaAsset.delete({ where: { id: reel.mediaAssetId } }).catch(() => null);
+      }
+      return { id: reelId, deleted: true };
+    });
+  } catch (err) {
+    if (err.message?.includes('foreign key') || err.message?.includes('constraint') || err.code === 'P2003' || err.code === 'P2025') {
+      return softDeleteReel(reelId);
+    }
+    await prisma.$executeRawUnsafe(`DELETE FROM "Reel" WHERE id = $1`, reelId).catch(() => null);
+    return { id: reelId, deleted: true };
+  }
+};
+
+// ── Find abandoned drafts older than cutoff date ──────────────
+
+export const findAbandonedDrafts = async (cutoffDate) => {
+  if (mocks.findAbandonedDrafts) return mocks.findAbandonedDrafts(cutoffDate);
+  try {
+    return await prisma.reel.findMany({
+      where: {
+        visibilityState: 'DRAFT',
+        deletedAt: null,
+        createdAt: { lte: cutoffDate },
+      },
+      include: {
+        mediaAsset: true,
+      },
+    });
+  } catch (err) {
+    if (err.message?.includes('visibilityState') || err.message?.includes('mediaAsset') || err.code === 'P2022') {
+      try {
+        const raw = await prisma.$queryRawUnsafe(
+          `SELECT * FROM "Reel" WHERE "deletedAt" IS NULL AND "status" = 'DRAFT' AND "createdAt" <= $1`,
+          cutoffDate
+        );
+        return raw || [];
+      } catch {
+        return [];
+      }
+    }
+    throw err;
+  }
+};
+
 // ── Update media keys (called after upload confirmation / direct upload) ──────
 
 export const updateReelMedia = async (reelId, mediaData) => {

@@ -6,13 +6,13 @@
 
 ## 1. Current state
 
-- Current phase: Phase 0 — Repository audit.
+- Current phase: Phase 6 — Production Readiness, Observability & Reliable Operations.
 - Phase status: ✅ Complete and verified.
-- Last updated: 16 October 2026.
-- Current next action: Review Phase 0 findings, approve MVP cut line, and proceed to Phase 1 (Foundation: separate app/server, .gitignore, Prisma client setup, Zod/Pino, health endpoints).
+- Last updated: 18 November 2026.
+- Current next action: Maintain observability, execute non-destructive migrations per DEPLOYMENT_AND_RECOVERY.md, and conduct deployment staging.
 - Last verified commit: None (`.git` not yet initialized).
-- Known blockers: Missing `.gitignore` posing credential leak risk; `package.json` scripts (`server.js`) out of sync with `index.js`.
-- Latest verification: Node.js v22.13.1 & npm 10.9.2 verified; Supabase PostgreSQL connection verified via `node -e "import('./src/db/db.js').then(m => m.default())"` (exit code 0).
+- Known blockers: None for Phase 6 MVP. Cloudinary transcoding and Socket.IO cluster deferred to dedicated scale infrastructure.
+- Latest verification: Phase 6 test suite (5/5 passed), Marketplace regression suite (7/7 passed), Boost system suite (4/4 passed), Auth suite (2/2 passed), Backfill suite (5/5 passed), Next.js client production build (32 routes prerendered).
 
 ### Status definitions
 
@@ -242,6 +242,12 @@ Confirm the actual scope during Phase 0. Do not assume every candidate feature c
 | 14 Nov 2026 | Wallet & Boost Migration | `apply-boost-migration.js` & `prisma generate` | Exit 0: migration applied | Added User.coinsBalance, CoinTransaction, BoostPackage, partial unique index |
 | 14 Nov 2026 | Boost system integration tests | `node --test tests/boost-system.test.js` | Exit 0: 4 passed, 0 failed | Verified welcome bonus, negative paths, idempotency, duplicate active guard, feed mixer |
 | 14 Nov 2026 | Full marketplace flows regression | `node --test tests/marketplace-flows.test.js` | Exit 0: 7 passed, 0 failed | All 7 marketplace flows pass with updated package boost flow and negative budget rejection |
+| 17 Nov 2026 | Auth lifecycle & rotation tests | `node --test tests/auth.test.js` | Exit 0: 2 passed, 0 failed | Verified basic auth, expired access token 401, refresh token rotation, expired refresh token 401, missing token 422 |
+| 17 Nov 2026 | Mobile session lifecycle test suite | `npm test tests/session-lifecycle.test.ts` | Exit 0: 9 passed, 0 failed | Verified data.tokens response parsing, rotated token storage, single-flight refresh mutex, startup restoration, 401 retry, loop prevention |
+| 18 Nov 2026 | Web Client Wallet & Boost Integration | `npx tsc --noEmit; npm run lint; npm run build` | Exit 0: all passed | Verified wallet balance, transaction ledger, boost modal, owner boost flow, sponsored badge rendering, and Next.js 30 routes build |
+| 18 Nov 2026 | Phase 6 Production Readiness Test Suite | `node --test tests/production-readiness.test.js` | Exit 0: 5 passed, 0 failed | Verified production env validation, health live/ready checks, logger error redaction, chat authorization 403, bounded pagination |
+| 18 Nov 2026 | Phase 6 Marketplace Flows Regression | `node --test tests/marketplace-flows.test.js` | Exit 0: 7 passed, 0 failed | Full marketplace regression (auth OTP, categories, listings, reels, ads, chat, admin metrics/moderation) |
+| 18 Nov 2026 | Phase 6 Client Build & App Router SEO | `npm run lint; npm run build` | Exit 0: all 32 routes compiled | Verified zero lint errors/warnings, robots.ts, sitemap.ts, live chatService integration, and Next.js 32 routes production build |
 
 ## 7. Risks and blockers
 

@@ -9,6 +9,7 @@
  * This file is the central place that configures and interfaces with Cloudinary.
  */
 
+import crypto from 'node:crypto';
 import { v2 as cloudinary } from 'cloudinary';
 import { optimizeCloudinaryUrl } from './cloudinary.utils.js';
 
@@ -96,7 +97,8 @@ export const generateUploadSignature = (opts) => {
 export const generateListingUploadSignature = ({ listingId, ownerId, type }) => {
   const resourceType = type === 'IMAGE' ? 'image' : 'video';
   const folder = `listings/${ownerId}/${listingId}`;
-  const publicId = `${folder}/${Date.now()}`;
+  const randomSuffix = crypto.randomBytes(4).toString('hex');
+  const publicId = `${folder}/${Date.now()}_${randomSuffix}`;
 
   if (!isConfigured) {
     return {

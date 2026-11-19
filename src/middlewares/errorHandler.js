@@ -38,11 +38,19 @@ export const errorHandler = (err, req, res, _next) => {
     log.warn({ err: { message: err.message, name: err.name }, reqId: req.id, path: req.originalUrl }, message);
   }
 
+  // Mask internal server errors in production to prevent leaking database or runtime internals
+  let clientMessage = message;
+  let clientDetails = details;
+  if (statusCode >= 500 && env.NODE_ENV === 'production') {
+    clientMessage = 'An unexpected internal server error occurred';
+    clientDetails = null;
+  }
+
   res.status(statusCode).json({
     success: false,
     error: {
-      message,
-      ...(details && { details }),
+      message: clientMessage,
+      ...(clientDetails && { details: clientDetails }),
       ...(env.NODE_ENV === 'development' && { stack: err.stack }),
     },
   });

@@ -85,7 +85,40 @@ test('Reels Module — Feed, Creation & Validation', async () => {
     });
     assert.equal(directUploadRes.status, 404, 'Direct upload endpoint must be removed');
 
-    // 9. DELETE /api/v1/reels/:reelId (archive)
+    // 9. Cancel/Discard Draft Reel POST /:reelId/cancel-upload
+    const cancelRes = await fetch(`${baseUrl}/${testReelId}/cancel-upload`, {
+      method: 'POST',
+    });
+    assert.equal(cancelRes.status, 200, 'Must allow creator to cancel draft reel');
+    const cancelJson = await cancelRes.json();
+    assert.equal(cancelJson.success, true);
+
+    // Cancel again or non-existent returns 404
+    const cancelAgainRes = await fetch(`${baseUrl}/${testReelId}/cancel-upload`, {
+      method: 'POST',
+    });
+    assert.equal(cancelAgainRes.status, 404, 'Cancelled reel must no longer exist');
+    testReelId = null;
+
+    // 10. Abandoned Draft TTL Cleanup Job
+    const { cleanupAbandonedDrafts } = await import('../src/modules/reels/reels.service.js');
+    // Calling cleanup with referenceDate in future should clean any test drafts older than TTL
+    const cleanupResult = await cleanupAbandonedDrafts(0); // 0 hours TTL purges any existing draft
+    assert.ok(typeof cleanupResult.cleanedCount === 'number');
+
+    // 11. Create a reel for DELETE archive test
+    const createSecondRes = await fetch(baseUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        caption: 'Reel to be archived',
+      }),
+    });
+    assert.equal(createSecondRes.status, 201);
+    const createSecondJson = await createSecondRes.json();
+    testReelId = createSecondJson.data.id;
+
+    // 12. DELETE /api/v1/reels/:reelId (archive)
     const deleteRes = await fetch(`${baseUrl}/${testReelId}`, {
       method: 'DELETE',
     });
