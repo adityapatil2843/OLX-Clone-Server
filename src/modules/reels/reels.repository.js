@@ -95,7 +95,7 @@ export const createReel = async (data, creatorId) => {
         },
         include: publicReelInclude(creatorId),
       });
-    });
+    }, { timeout: 15000 });
   } catch (err) {
     if (err.message?.includes('visibilityState') || err.message?.includes('processingState') || err.code === 'P2022') {
       const newId = crypto.randomUUID();
@@ -1110,4 +1110,80 @@ export const listComments = async (reelId, page = 1, limit = 20) => {
   ]);
 
   return { comments, total };
+};
+
+// ── Engagement: List Saved Reels ───────────────────────────────
+
+export const listSavedReels = async (userId, page = 1, limit = 20) => {
+  if (mocks.listSavedReels) return mocks.listSavedReels(userId, page, limit);
+
+  const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 50);
+  const safePage = Math.max(Number(page) || 1, 1);
+  const skip = (safePage - 1) * safeLimit;
+
+  const where = {
+    userId,
+    reel: {
+      deletedAt: null,
+      visibilityState: 'PUBLISHED',
+      NOT: {
+        mediaAsset: {
+          processingState: { in: ['FAILED', 'PENDING', 'PROCESSING'] },
+        },
+      },
+    },
+  };
+
+  try {
+    const [savedReels, total] = await Promise.all([
+      prisma.savedReel.findMany({
+        where,
+        include: {
+          reel: {
+            include: publicReelInclude(userId),
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: safeLimit,
+      }),
+      prisma.savedReel.count({ where }),
+    ]);
+
+    return { savedReels, total };
+  } catch (err) {
+    if (err.message?.includes('visibilityState') || err.message?.includes('processingState') || err.code === 'P2022') {
+      try {
+        const raw = await prisma.$queryRawUnsafe(
+          `SELECT sr.* FROM "SavedReel" sr
+           INNER JOIN "Reel" r ON sr."reelId" = r.id
+           WHERE sr."userId" = $1 AND r."deletedAt" IS NULL AND (r."visibilityState" = 'PUBLISHED' OR r."status" = 'PUBLISHED')
+           ORDER BY sr."createdAt" DESC LIMIT $2 OFFSET $3`,
+          userId,
+          safeLimit,
+          skip
+        );
+        const countRaw = await prisma.$queryRawUnsafe(
+          `SELECT count(*)::int FROM "SavedReel" sr
+           INNER JOIN "Reel" r ON sr."reelId" = r.id
+           WHERE sr."userId" = $1 AND r."deletedAt" IS NULL AND (r."visibilityState" = 'PUBLISHED' OR r."status" = 'PUBLISHED')`,
+          userId
+        );
+        const total = countRaw[0]?.count || 0;
+        const savedReels = await Promise.all(
+          (raw || []).map(async (sr) => {
+            const reel = await findReelById(sr.reelId, userId);
+            return {
+              ...sr,
+              reel: reel || { id: sr.reelId, caption: null, visibilityState: 'PUBLISHED' },
+            };
+          })
+        );
+        return { savedReels, total };
+      } catch {
+        return { savedReels: [], total: 0 };
+      }
+    }
+    throw err;
+  }
 };

@@ -13,7 +13,7 @@ export const moderateListingSchema = z.object({
 }).strict();
 
 export const moderateReelSchema = z.object({
-  status: z.enum(['PUBLISHED', 'DRAFT', 'PROCESSING', 'FAILED', 'ARCHIVED']),
+  status: z.enum(['PUBLISHED', 'DRAFT', 'MODERATED', 'ARCHIVED']),
   reason: z.string().trim().max(500).optional(),
 }).strict();
 
@@ -25,7 +25,7 @@ export const moderateUserSchema = z.object({
 
 export const createReportSchema = z.object({
   targetType: z.enum(['USER', 'LISTING', 'REEL']),
-  targetId: z.string().min(1, 'Target ID is required'),
+  targetId: uuid,
   reason: z.string().trim().min(3).max(200),
   details: z.string().trim().max(2000).optional().nullable(),
 }).strict();

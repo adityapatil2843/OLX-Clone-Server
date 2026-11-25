@@ -172,13 +172,18 @@ async function main() {
   });
 
   // Ensure admin user exists
-  const adminPasswordHash = await bcrypt.hash('Admin@123456', 10);
+  const seedAdminEmail = process.env.SEED_ADMIN_EMAIL?.trim();
+  const seedAdminPassword = process.env.SEED_ADMIN_PASSWORD;
+  if (!seedAdminEmail || !seedAdminPassword) {
+    throw new Error('SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD are required to seed the admin user');
+  }
+  const adminPasswordHash = await bcrypt.hash(seedAdminPassword, 10);
   await prisma.user.upsert({
-    where: { email: 'admin@olxmarketplace.com' },
-    update: { role: 'ADMIN', isActive: true },
+    where: { email: seedAdminEmail },
+    update: { role: 'ADMIN', isActive: true, passwordHash: adminPasswordHash },
     create: {
-      name: 'System Administrator',
-      email: 'admin@olxmarketplace.com',
+      name: process.env.ADMIN_NAME || 'System Administrator',
+      email: seedAdminEmail,
       phone: '9999900000',
       passwordHash: adminPasswordHash,
       role: 'ADMIN',

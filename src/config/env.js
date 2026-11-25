@@ -12,7 +12,7 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   DIRECT_URL: z.string().optional(),
   DIRECT_DATABASE_URL: z.string().optional(),
-  CORS_ORIGIN: z.string().default('*'),
+  CORS_ORIGIN: z.string().default('https://bazarr360.in'),
   LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace'])
     .default('info'),
@@ -48,6 +48,7 @@ const envSchema = z.object({
     .pipe(z.number().int().min(4).max(16)),
   EMAIL_USER: z.string().optional(),
   EMAIL_PASS: z.string().optional(),
+  SENTRY_DSN: z.string().optional(),
 }).superRefine((data, ctx) => {
   if (data.NODE_ENV === 'production') {
     if (data.JWT_ACCESS_SECRET.includes('dev-super-secret') || data.JWT_ACCESS_SECRET.length < 32) {
@@ -64,7 +65,8 @@ const envSchema = z.object({
         message: 'JWT_REFRESH_SECRET must be a secure, non-default string of at least 32 characters in production',
       });
     }
-    if (data.CORS_ORIGIN === '*') {
+    const corsOrigins = data.CORS_ORIGIN.split(',').map((s) => s.trim());
+    if (data.CORS_ORIGIN === '*' || corsOrigins.includes('*')) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['CORS_ORIGIN'],

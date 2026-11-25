@@ -6,6 +6,7 @@
   "scripts": {
     "test": "node --test tests/marketplace-flows.test.js",
     "test:readiness": "node --test tests/production-readiness.test.js",
+    "test:cors": "node --test tests/cors.test.js",
     "test:reels": "node --test tests/reels.test.js",
     "test:webhook": "node --test tests/webhook.test.js",
     "test:all": "node --test tests/*.test.js",
@@ -22,6 +23,7 @@
     "k6:monitor": "k6 run -o experimental-prometheus-rw=http://localhost:9090/api/v1/write tests/load/load-test.js",
     "script:cleanup-otp": "node scripts/cleanup-expired-otps.js",
     "script:backfill-welcome-coins": "node scripts/backfill-welcome-coins.js",
+    "script:create-admin": "node scripts/create-admin.js",
     "build": "prisma generate",
     "prisma:deploy": "prisma migrate deploy"
   },
@@ -35,6 +37,7 @@
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
+    "@sentry/node": "^11.16.0",
     "bcrypt": "^6.0.0",
     "cloudinary": "^2.11.0",
     "cors": "^2.8.6",

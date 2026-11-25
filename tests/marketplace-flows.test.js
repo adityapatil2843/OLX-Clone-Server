@@ -691,6 +691,7 @@ test('Flow G — Admin Platform Metrics, Moderation, and Action Auditing', async
     const unauthMetricsRes = await fetch(`${baseUrl}/metrics`, { headers: userHeaders });
     assert.equal(unauthMetricsRes.status, 403);
 
+
     // 3. Admin moderates the listing (suspends it)
     const moderateRes = await fetch(`${baseUrl}/listings/${listing.id}/moderate`, {
       method: 'PATCH',
@@ -709,6 +710,16 @@ test('Flow G — Admin Platform Metrics, Moderation, and Action Auditing', async
     assert.equal(auditRes.status, 200);
     const auditJson = await auditRes.json();
     assert.ok(auditJson.data.some((log) => log.targetId === listing.id && log.action === 'MODERATE_LISTING'));
+
+    const selfChangeRes = await fetch(`${baseUrl}/users/${admin.id}/moderate`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${generateToken(admin, 'ADMIN')}`,
+      },
+      body: JSON.stringify({ role: 'USER' }),
+    });
+    assert.equal(selfChangeRes.status, 400);
   } finally {
     if (listing) {
       await prisma.adminAuditLog.deleteMany({ where: { targetId: listing.id } });

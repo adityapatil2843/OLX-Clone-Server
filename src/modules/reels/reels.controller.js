@@ -9,6 +9,7 @@ import {
   updateReelSchema,
   reelIdParamSchema,
   listReelsQuerySchema,
+  listSavedReelsQuerySchema,
   uploadRequestSchema,
   confirmUploadSchema,
   createCommentSchema,
@@ -51,6 +52,18 @@ export const listReels = async (req, res, next) => {
   try {
     const query = parseOrThrow(listReelsQuerySchema, req.query);
     const result = await service.listReels(query, req.user?.id);
+    ok(res, result.data, 200, result.meta);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ── GET /api/v1/reels/saved ───────────────────────────────────
+
+export const listSavedReels = async (req, res, next) => {
+  try {
+    const query = parseOrThrow(listSavedReelsQuerySchema, req.query);
+    const result = await service.listSavedReels(req.user.id, query);
     ok(res, result.data, 200, result.meta);
   } catch (err) {
     next(err);

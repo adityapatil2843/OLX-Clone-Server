@@ -1,6 +1,7 @@
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
+import * as Sentry from '@sentry/node';
 import { env } from './config/env.js';
 import { logger, httpLogger } from './config/logger.js';
 import { prisma } from './db/prisma.js';
@@ -17,32 +18,62 @@ const app = express();
 app.use(helmet());
 
 // Safe CORS configuration
-const isWildcardOrigin = env.CORS_ORIGIN === '*';
-const configuredOrigins = isWildcardOrigin
-  ? []
-  : env.CORS_ORIGIN.split(',').map((origin) => origin.trim());
+const allowedProductionOrigins = new Set([
+  'https://bazarr360.in',
+  'https://www.bazarr360.in',
+]);
+
+const rawOrigins = (env.CORS_ORIGIN || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+// Reject wildcard from credentials-enabled origin list
+const configuredOrigins = new Set(
+  rawOrigins.filter((origin) => origin !== '*')
+);
+
+export const isOriginAllowed = (
+  origin,
+  currentEnv = env.NODE_ENV,
+  customOrigins = configuredOrigins
+) => {
+  // Allow requests with no origin (e.g. mobile apps, curl, Postman, server-to-server)
+  if (!origin) return true;
+
+  // Never allow wildcard with credentials
+  if (origin === '*') return false;
+
+  // Standard production origins and configured origins are always allowed
+  if (allowedProductionOrigins.has(origin)) return true;
+  if (customOrigins instanceof Set ? customOrigins.has(origin) : customOrigins.includes(origin)) {
+    return true;
+  }
+
+  // In non-production environments (development/test), allow local and LAN addresses
+  if (currentEnv !== 'production') {
+    const isLocalOrLan =
+      /^https?:\/\/(localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?$/.test(
+        origin
+      );
+    if (isLocalOrLan) return true;
+  }
+
+  return false;
+};
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (e.g. mobile apps, curl, Postman)
-      if (!origin) return callback(null, true);
-
-      if (isWildcardOrigin) return callback(null, true);
-      if (configuredOrigins.includes(origin)) return callback(null, true);
-
-      // In development mode, automatically allow localhost and private network IP origins (e.g. Expo Web on 8081)
-      if (env.NODE_ENV === 'development') {
-        const isLocalOrLan =
-          /^https?:\/\/(localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?$/.test(
-            origin
-          );
-        if (isLocalOrLan) return callback(null, true);
+      if (isOriginAllowed(origin)) {
+        return callback(null, true);
       }
-
       return callback(new Error(`Origin ${origin} not allowed by CORS`));
     },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+    optionsSuccessStatus: 204,
   })
 );
 
@@ -110,11 +141,19 @@ app.get('/', (_req, res) => {
 
 app.use('/api/v1', v1Router);
 
+// ── Sentry Test Endpoint (Development / Diagnostics) ─────────
+app.get('/debug-sentry', (_req, _res) => {
+  throw new Error('Sentry test error from Bazarr360 server!');
+});
+
 // ── 404 Catch-All ─────────────────────────────────────────────
 
 app.use((req, _res, next) => {
   next(new NotFoundError(`Route ${req.method} ${req.originalUrl} not found`));
 });
+
+// ── Sentry Error Handler ──────────────────────────────────────
+Sentry.setupExpressErrorHandler(app);
 
 // ── Centralized Error Handler ─────────────────────────────────
 

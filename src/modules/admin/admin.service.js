@@ -1,6 +1,6 @@
 import * as repo from './admin.repository.js';
 import { prisma } from '../../db/prisma.js';
-import { NotFoundError } from '../../utils/errors.js';
+import { BadRequestError, NotFoundError } from '../../utils/errors.js';
 import { ADMIN_ACTIONS } from './admin.constants.js';
 import { stopListingAdvertisements } from '../advertisements/advertisements.service.js';
 import { createNotificationIfEnabled } from '../notifications/notifications.service.js';
@@ -66,8 +66,15 @@ export const moderateReel = async (reelId, { status, reason }, adminId) => {
       reason: reason || null,
     },
   });
-  if (report.reporterId && payload.status !== report.status) {
-    await createNotificationIfEnabled({ userId: report.reporterId, actorId: adminId, type: 'REPORT_RESOLVED', title: 'Report updated', message: `Your report was ${payload.status.toLowerCase()}.`, data: { reportId, status: payload.status } });
+  if (reel.creatorId && (status === 'PUBLISHED' || status === 'ARCHIVED')) {
+    await createNotificationIfEnabled({
+      userId: reel.creatorId,
+      actorId: adminId,
+      type: status === 'PUBLISHED' ? 'REEL_APPROVED' : 'REEL_REJECTED',
+      title: `Reel ${status === 'PUBLISHED' ? 'published' : 'archived'}`,
+      message: `Your reel was ${status === 'PUBLISHED' ? 'approved and published' : 'archived by moderation'}.`,
+      data: { reelId, status },
+    });
   }
 
   return updated;
@@ -80,6 +87,10 @@ export const moderateUser = async (userId, { isActive, role, reason }, adminId) 
 
   if (!user) {
     throw new NotFoundError(`User '${userId}' not found`);
+  }
+
+  if (userId === adminId && (isActive === false || (role !== undefined && role !== user.role))) {
+    throw new BadRequestError('An administrator cannot deactivate or change their own role');
   }
 
   const dataToUpdate = {};
@@ -104,6 +115,16 @@ export const moderateUser = async (userId, { isActive, role, reason }, adminId) 
 };
 
 export const fileReport = async (payload, reporterId) => {
+  const targetExists = payload.targetType === 'USER'
+    ? await prisma.user.findUnique({ where: { id: payload.targetId }, select: { id: true } })
+    : payload.targetType === 'LISTING'
+      ? await prisma.listing.findUnique({ where: { id: payload.targetId }, select: { id: true } })
+      : await prisma.reel.findUnique({ where: { id: payload.targetId }, select: { id: true } });
+
+  if (!targetExists) {
+    throw new NotFoundError(`${payload.targetType} '${payload.targetId}' not found`);
+  }
+
   return repo.createReport({
     reporterId,
     targetType: payload.targetType,

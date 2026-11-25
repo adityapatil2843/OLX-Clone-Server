@@ -13,6 +13,10 @@ const router = Router();
 router.get('/', optionalAuthenticate, controller.listReels);
 router.post('/', authenticate, controller.createReel);
 
+// ── Saved Reels (must precede dynamic /:reelId) ───────────────
+
+router.get('/saved', authenticate, controller.listSavedReels);
+
 // ── Single Reel ───────────────────────────────────────────────
 
 router.get('/:reelId', optionalAuthenticate, controller.getReelById);

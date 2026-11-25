@@ -459,6 +459,31 @@ export const unsaveReel = async (reelId, userId) => {
   return { message: 'Reel removed from saved', reelId };
 };
 
+export const listSavedReels = async (userId, queryParams = {}) => {
+  const { page = 1, limit = 20 } = queryParams;
+  const result = await repo.listSavedReels(userId, page, limit);
+
+  const formattedReels = (result.savedReels || []).map((sr) => {
+    const formatted = formatReel(sr.reel);
+    return {
+      ...formatted,
+      savedAt: sr.createdAt,
+      isSaved: true,
+    };
+  });
+
+  return {
+    data: formattedReels,
+    meta: {
+      page,
+      limit,
+      total: result.total,
+      totalPages: Math.ceil(result.total / limit),
+      hasNextPage: page * limit < result.total,
+    },
+  };
+};
+
 // ── Engagement: Comments ───────────────────────────────────────
 
 export const addComment = async (reelId, userId, text) => {
